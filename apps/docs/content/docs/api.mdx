@@ -1,0 +1,12 @@
+---
+title: Public API reference
+description: Practical guidance for public api reference.
+---
+
+`createUpserve(config): Hono & { refresh(app): Promise<void>; invalidate(app): Promise<void> }` creates the Fetch application. `defineConfig(config)` preserves inference. Configuration fields and contracts have generated declaration JSDoc in the package output.
+
+`memoryCache(maxEntries = 1000)` returns a CacheStore. `sqliteCache(filename)` adds close(). The core never imports SQLite or Node modules.
+
+`github(options)` accepts repository, token, private, tagPrefix, cacheScope, webhookSecret, fetch, timeout, maxPages, retries, sleep and random. `tauri({ manifest? })`, `electron({ channels? })`, `android({ manifest?, transform?, compatible? })` and `generic()` return Adapters.
+
+`newer(candidate,current)`, `validVersion(version)` and `compareVersions(a,b)` implement strict semantic-version operations. `readText(response,maxBytes)` reads bounded UTF-8 metadata. `UpserveError(code,message,retryAt?)` conveys safe operational failures. Helpers and the contract types are exported at the package root; internal coordinator and schemas are not exported.

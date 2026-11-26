@@ -1,0 +1,29 @@
+---
+title: Getting started
+description: Practical guidance for getting started.
+---
+
+Upserve is a Neplex Technologies project that distributes existing application updates through a composable Hono application. It caches metadata; it does not build releases, sign applications or mirror binaries.
+
+Use Node.js 22.13 or newer (Node 24 recommended), or Bun for the embedded core. Install the integrations you need:
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+```ts
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "example/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+Check `/editor/stable/generic/latest`. A missing release returns 204. Replace the example repository with your own. See the runnable workspace playground and `examples/` for local demonstrations.

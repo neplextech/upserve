@@ -1,0 +1,12 @@
+---
+title: Asset delivery and differential updates
+description: Practical guidance for asset delivery and differential updates.
+---
+
+Public GitHub assets redirect by default after validating the exact repository release-download path. Set `delivery: 'stream'` to stream through Upserve. Private providers always stream after downstream authorization.
+
+Streaming forwards GET/HEAD, Range, If-Range, If-None-Match and If-Modified-Since. Content-Length, Content-Type, Content-Disposition, Content-Range, Accept-Ranges, ETag and Last-Modified are retained. Upstream 206, 304 and 416 responses retain their status. Web Streams provide backpressure; the client abort signal is forwarded. Requests have a 30-second default upstream timeout, including streamed response consumption in standard Fetch implementations. Increase provider `timeout` for large installers and slow links.
+
+Only registered assets can be opened. Upserve does not proxy arbitrary URL query parameters. GitHub API redirects are restricted to the official release asset hosts and never receive credentials. Public clients follow GitHub-controlled download redirects themselves. Private responses never expose API credentials or signed redirect locations.
+
+Metadata is cached; installer binaries are streamed, not stored. Avoid CDN caching of private responses and ensure authorization headers are forwarded. Disable proxy buffering for large streaming responses. HTTP caches can honor public asset headers; use an external CDN deliberately rather than assuming binary mirroring.

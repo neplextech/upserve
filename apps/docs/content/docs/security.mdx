@@ -1,0 +1,14 @@
+---
+title: Security and private releases
+description: Practical guidance for security and private releases.
+---
+
+Upserve plugins and configuration execute as trusted application code. They are not sandboxed. Providers must validate URLs, redirect targets and untrusted upstream metadata before exposing it.
+
+Upstream repository authentication does not authorize clients. A token implies private mode unless explicitly overridden. Private mode requires an `authorize(request)` callback; denial returns 401 before any upstream work. A standalone configuration can compare a bearer header against an environment secret. Use constant-time verification or an existing authentication middleware for production. Do not put secrets in URLs, manifests or logs. Rotate provider cacheScope and deployment namespace on permission changes.
+
+GitHub's fixed API origin and exact asset-host allowlist avoid arbitrary upstream proxying and DNS rebinding to attacker-controlled names. Custom private-network providers must explicitly implement and document their destination policy; the official provider does not support GitHub Enterprise or private network URLs.
+
+Metadata bodies, release/page counts, response lifetimes and refresh concurrency are bounded. Assets are only selected by registered IDs or exact names. No filesystem asset paths are built from client input. Request IDs, authorization bodies and upstream error bodies are not logged. Authenticated webhooks have bounded bodies and cooldowns.
+
+Never store application signing keys. Use HTTPS externally; set a trusted canonical host at your reverse proxy because generated asset URLs use the request origin. Rate limit unauthenticated traffic at the edge, especially binary downloads. Follow SECURITY.md for disclosure; no security mailbox or configured advisory infrastructure is claimed.

@@ -1,0 +1,12 @@
+---
+title: CLI, Docker and operations
+description: Practical guidance for cli, docker and operations.
+---
+
+Install `@neplex/upserve-cli` and integrations. Run `npx @neplex/upserve-cli init`, edit upserve.config.ts, then `npx @neplex/upserve-cli start`. Before initial npm publication, run the workspace CLI through `pnpm exec tsx packages/cli/src/index.ts`.
+
+Environment variables: UPSERVE_CONFIG (default upserve.config.ts), HOST (0.0.0.0), PORT (3000), UPSERVE_CACHE_DIR (optional persistent SQLite directory). Config files read secrets from environment variables explicitly; Upserve does not load .env automatically. Startup logs are structured JSON without secret error serialization. SIGINT/SIGTERM stop accepting work and allow ten seconds to drain. `/health/live` checks process health; `/health/ready` checks readiness to receive traffic, not upstream availability.
+
+Build the root Dockerfile with `docker build -t upserve .`. Use `docker compose up --build` after editing examples/upserve.config.ts. Mount a config and a writable data volume; the runtime UID is 10001. In Coolify, select Dockerfile deployment, expose port 3000, set secrets and mount `/data`. The default image is Node-specific and does not require Redis or PostgreSQL.
+
+Use HTTPS at a reverse proxy. Forward the canonical Host, Range and conditional headers; disable response buffering. Do not cache private routes at a CDN. Use one process for strict process-local refresh coordination. Without timers, the first request after freshness ends refreshes opportunistically. Webhooks or trusted external scheduling can call the in-process refresh API; no open refresh endpoint is provided.

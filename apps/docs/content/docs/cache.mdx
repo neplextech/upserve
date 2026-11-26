@@ -1,0 +1,24 @@
+---
+title: Cache behavior and failures
+description: Practical guidance for cache behavior and failures.
+---
+
+The default memory cache is a process-local LRU with 1,000 entries. Default fresh TTL is 60 seconds, negative TTL 15 seconds and stale-if-error window five minutes after freshness ends. Configure per application using `cache: { ttl, negativeTtl, staleIfError }`.
+
+Concurrent loads of the same key share a promise. Refresh concurrency is bounded per Upserve instance. Supply `background` to return stale data while a refresh runs; otherwise the caller awaits refresh. Failure cooldowns prevent repeated cold-cache traffic from hammering the upstream. A cold failure returns 503; a missing release list is successful empty data. Invalid metadata cannot replace the last validated release list. Authentication failures fail closed. After the stale window expires, temporary failures return 503.
+
+Successful empty lists replace the old state, so deleted and withdrawn releases disappear after refresh. Cached data can remain visible until its freshness window ends; webhook refresh reduces this delay. Programmatic `await updates.refresh('editor')` bypasses freshness while respecting cooldowns; `await updates.invalidate('editor')` expires release selection. Explicit refresh also revalidates provider page resources. There are no client query parameters that bypass caches.
+
+SQLite persists JSON metadata with WAL and uses `node:sqlite`:
+
+```ts
+import { sqliteCache } from "@neplex/upserve-sqlite";
+const cache = sqliteCache("./data/metadata.sqlite");
+// Pass cache to createUpserve; call cache.close() after requests drain.
+```
+
+Create the parent directory first. Use a deployment `namespace` and provider `cacheScope` when sharing persistent storage across restarts. Rotate both when security boundaries change. Authenticated providers default to a random credential scope unless explicitly configured, preventing accidental cross-credential reuse. Cache keys never contain raw tokens.
+
+Coordination and cooldown state are local to one process. Shared cache deployments do not have distributed locking or globally enforced upstream concurrency. Deploy one instance per credential scope when that guarantee matters. No permanent binary cache or automatic disk pruning is provided; monitor persistent metadata storage.
+
+Client metadata responses use ETags. Private responses are `private, no-store`; public metadata requires revalidation. Liveness and readiness do not probe GitHub.

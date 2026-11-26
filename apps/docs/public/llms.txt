@@ -1,0 +1,17 @@
+# Upserve
+
+Self-hostable application update distribution.
+
+- [api](/docs/api)
+- [assets](/docs/assets)
+- [cache](/docs/cache)
+- [configuration](/docs/configuration)
+- [deployment](/docs/deployment)
+- [embedding](/docs/embedding)
+- [extensions](/docs/extensions)
+- [generic](/docs/generic)
+- [github](/docs/github)
+- [index](/docs/)
+- [integrations](/docs/integrations)
+- [security](/docs/security)
+- [troubleshooting](/docs/troubleshooting)

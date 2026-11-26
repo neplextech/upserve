@@ -1,0 +1,12 @@
+---
+title: Configuration and channels
+description: Practical guidance for configuration and channels.
+---
+
+`defineConfig` is an inference-preserving helper for TypeScript config files. The CLI loads the default export of `upserve.config.ts` using tsx. Config modules execute as trusted code.
+
+Each application has `provider`, `adapters`, optional `authorize`, `channels`, `cache` and `delivery`. App and channel names use letters, numbers, dots, underscores and hyphens, up to 128 characters. Default channels are `stable` (non-prerelease) and `prerelease` (prerelease only). Override them with named predicates, for example `channels: { beta: release => release.version.includes('-beta.') }`.
+
+Release IDs identify provider objects; tags identify upstream references; `version` is a validated semantic version. They are separate fields. GitHub defaults to stripping `v`; set `tagPrefix: 'app-v'` or `tagPrefix: ''` deliberately. Stable selection scans releases instead of calling GitHub's latest endpoint. Draft and yanked releases are removed. The newest semantic version wins, regardless of publication order.
+
+Application and channel boundaries cannot be selected by arbitrary upstream URLs. Cache TTLs are milliseconds. `concurrency` defaults to 4 and accepts 1–64.

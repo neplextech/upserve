@@ -1,0 +1,12 @@
+---
+title: Troubleshooting
+description: Practical guidance for troubleshooting.
+---
+
+A 503 with Retry-After means the upstream failed or refresh is in cooldown. Do not force invalidation in a client retry loop. Check repository permissions and provider configuration. 401 means downstream authorization denied access. 422 means invalid metadata or a malformed version; confirm manifest checksums, filenames and tagPrefix.
+
+A 204 can mean no release, no newer version or no applicable platform. A missing manifest returns 404. Upstream invalid manifests are not valid updates. Ensure every referenced binary belongs to the selected release, and Electron file sizes match GitHub metadata.
+
+Changes may take a metadata TTL to appear. Use authenticated release webhooks and adjust TTLs deliberately. SQLite requires a writable parent directory and Node's built-in SQLite. Inspect public health routes separately from actual update requests; readiness does not prove GitHub access.
+
+If downloads fail at 30 seconds, increase the GitHub timeout and reverse proxy limits. For Electron differential updates, retain old blockmaps and disable multiple-range requests with the GitHub generic feed.

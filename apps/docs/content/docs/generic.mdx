@@ -1,0 +1,10 @@
+---
+title: Generic clients
+description: Practical guidance for generic clients.
+---
+
+`generic()` from `@neplex/upserve-generic` exposes GET endpoints below `/APP/CHANNEL/generic`: `/latest`, `/releases`, `/versions/VERSION`, `/update/CURRENT`, and `/channels`.
+
+Release responses contain id, tag, version, prerelease, notes, publishedAt and assets (name, size, server URL). Provider metadata and upstream URLs are omitted. Latest/update return 204 when absent or already current; specific-version misses return 404. Invalid semantic current versions return 422. Lists return `{ releases: [...] }`; channel discovery returns `{ channels: [...] }`.
+
+`examples/client.py` is a Python client. It fetches an offer without installing executable code. Custom clients should authenticate when required, verify platform-specific integrity and signatures, and treat 204 as no update.

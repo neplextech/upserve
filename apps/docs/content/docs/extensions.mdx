@@ -1,0 +1,12 @@
+---
+title: Custom integrations
+description: Practical guidance for custom integrations.
+---
+
+Official integrations use the public `Provider`, `Adapter` and `CacheStore` interfaces. The inference-preserving helpers are `defineProvider`, `defineAdapter` and `defineCache`.
+
+Providers implement name, scope, releases(context), open(asset, request, context), and optionally redirect and verifyWebhook. Scope is a nonsecret configuration/credential generation boundary. `context.cached(identity, load)` coalesces bounded metadata loads within the application scope; the previous validated response can contain conditional validators. Throw `UpserveError` with auth, rate_limit, network, invalid or missing. An optional retryAt sets a cooldown. Resolve empty lists only for confirmed absence, never temporary errors.
+
+Adapters implement name and register(router, services). Routes are mounted under `/APP/CHANNEL`. Use services.latest or releases with the route channel; services.manifest(release, name, parse) reads a known release asset and validates it before caching, services.assetUrl builds an authorized delivery URL, and services.deliver streams or redirects. Validate protocol manifests before returning offers. No unrelated application state is exposed. Avoid route collisions; duplicate adapter names are rejected.
+
+Caches implement asynchronous get, set and delete. Values are serializable CacheEntry objects and must be isolated by complete key. Preserve freshUntil, staleUntil and retryAt across restarts. Store metadata securely and use atomic writes. Examples in `examples/extensions.ts` implement all three contracts without privileged internal APIs.

@@ -1,0 +1,12 @@
+---
+title: Embedding and runtimes
+description: Practical guidance for embedding and runtimes.
+---
+
+The return value of `createUpserve` is a Hono application. Mount it using `app.route('/updates', updates)`; asset URLs retain that mount prefix.
+
+For Bun, run `Bun.serve({ port: 3000, fetch: updates.fetch })`. For Node, install `@hono/node-server` and call `serve({ fetch: updates.fetch, port: 3000 })`.
+
+The core uses Fetch, Web Crypto, AbortSignal and Web Streams. A Worker can export `updates` as its default Fetch handler; pass a request-scoped `background: task => ctx.waitUntil(task)` when constructing it if stale-while-revalidate is desired. Without this hook, refreshes are awaited and do not rely on background execution. Provider credentials belong in runtime bindings. SQLite and the CLI are Node-specific; use a custom cache in Workers.
+
+Node and Bun are exercised by the runtime smoke script. The Worker example illustrates integration but has not been deployed or validated in Cloudflare. Do not treat it as a deployment guarantee.

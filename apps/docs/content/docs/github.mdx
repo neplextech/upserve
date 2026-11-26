@@ -1,0 +1,12 @@
+---
+title: GitHub Releases and webhooks
+description: Practical guidance for github releases and webhooks.
+---
+
+Install `@neplex/upserve-github` and call `github({ repository: 'owner/repo', tagPrefix: 'v' })`. Supply `token` from environment bindings for authenticated access. Tokens imply private mode by default. Explicit `private: false` is appropriate only for authenticated API access to a public repository. Use fine-grained read-only repository permissions.
+
+Listings are paginated in pages of 100, up to 20 pages by default. Exceeding `maxPages` fails instead of silently truncating release history. ETags and Last-Modified validators are persisted with page data. Invalid pages fail validation. Network and 5xx failures receive two bounded retries with exponential backoff and jitter. 429 and rate-limit 403 responses establish a cooldown using Retry-After and reset headers. Headerless 403 failures fail closed with a 60-second delay; they may represent permissions or secondary throttling.
+
+`fetch`, `sleep` and `random` can be injected for deterministic tests. `timeout` defaults to 30 seconds per request. Credentials are only sent to api.github.com. Signed asset destinations are followed internally without Authorization.
+
+Set `webhookSecret` and configure GitHub's release webhook to POST `/webhooks/APP`. Upserve verifies HMAC-SHA256, the repository identity and event type before refreshing. Deliveries are bounded to 256 KiB and refreshes to one per ten seconds. Webhook routes use the signature rather than application bearer credentials. Replays within the cooldown cannot force upstream work. No admin HTTP invalidation API exists.
