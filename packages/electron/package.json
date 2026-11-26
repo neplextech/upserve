@@ -1,6 +1,6 @@
 {
   "name": "@neplex/upserve-electron",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Composable application update distribution for Fetch runtimes",
   "homepage": "https://upserve.neplex.dev",
   "license": "MIT",
