@@ -16,7 +16,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         ),
         url: "/",
       }}
-      links={[{ text: "GitHub", url: "https://github.com/neplextech/upserve", external: true }]}
+      githubUrl="https://github.com/neplextech/upserve"
     >
       {children}
     </DocsLayout>
