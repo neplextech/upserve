@@ -1,24 +1,27 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
+
+/**
+ * Resolves a workspace package entry point relative to this configuration so
+ * tests run against TypeScript sources on any checkout path.
+ */
+function source(directory: string): string {
+  return fileURLToPath(new URL(`./packages/${directory}/src/index.ts`, import.meta.url));
+}
+
 export default defineConfig({
   test: { include: ["tests/**/*.test.ts"] },
   resolve: {
     alias: {
-      "@neplex/upserve":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/upserve/src/index.ts",
-      "@neplex/upserve-github":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/github/src/index.ts",
-      "@neplex/upserve-tauri":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/tauri/src/index.ts",
-      "@neplex/upserve-electron":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/electron/src/index.ts",
-      "@neplex/upserve-android":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/android/src/index.ts",
-      "@neplex/upserve-generic":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/generic/src/index.ts",
-      "@neplex/upserve-sqlite":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/sqlite/src/index.ts",
-      "@neplex/upserve-cli":
-        "/Users/andromeda/Developer/work/neplex/upserve/packages/cli/src/index.ts",
+      "@neplex/upserve": source("upserve"),
+      "@neplex/upserve-github": source("github"),
+      "@neplex/upserve-tauri": source("tauri"),
+      "@neplex/upserve-electron": source("electron"),
+      "@neplex/upserve-android": source("android"),
+      "@neplex/upserve-generic": source("generic"),
+      "@neplex/upserve-sqlite": source("sqlite"),
+      "@neplex/upserve-cli": source("cli"),
     },
   },
 });
