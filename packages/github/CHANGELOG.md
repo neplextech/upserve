@@ -1,5 +1,12 @@
 # @neplex/upserve-github
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [b6f2c63]
+  - @neplex/upserve@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

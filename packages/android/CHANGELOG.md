@@ -1,5 +1,12 @@
 # @neplex/upserve-android
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [b6f2c63]
+  - @neplex/upserve@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes

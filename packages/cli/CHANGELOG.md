@@ -1,5 +1,18 @@
 # @neplex/upserve-cli
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [b6f2c63]
+  - @neplex/upserve@0.3.0
+  - @neplex/upserve-android@0.1.3
+  - @neplex/upserve-electron@0.1.3
+  - @neplex/upserve-generic@0.1.3
+  - @neplex/upserve-github@0.2.1
+  - @neplex/upserve-sqlite@0.1.3
+  - @neplex/upserve-tauri@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

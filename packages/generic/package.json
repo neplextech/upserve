@@ -1,6 +1,6 @@
 {
   "name": "@neplex/upserve-generic",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Composable application update distribution for Fetch runtimes",
   "homepage": "https://upserve.neplex.dev",
   "license": "MIT",
