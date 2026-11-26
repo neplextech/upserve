@@ -1,12 +1,212 @@
 ---
-title: Public API reference
-description: Practical guidance for public api reference.
+title: Public API
+description: Find exported functions, integration options and extension contract semantics.
 ---
 
-`createUpserve(config): Hono & { refresh(app): Promise<void>; invalidate(app): Promise<void> }` creates the Fetch application. `defineConfig(config)` preserves inference. Configuration fields and contracts have generated declaration JSDoc in the package output.
+All core imports below come from `@neplex/upserve`. Providers, adapters and SQLite are separate packages so you only install what you use. Runtime configuration fields are listed in the [configuration reference](/docs/configuration-reference).
 
-`memoryCache(maxEntries = 1000)` returns a CacheStore. `sqliteCache(filename)` adds close(). The core never imports SQLite or Node modules.
+## createUpserve
 
-`github(options)` accepts repository, token, private, tagPrefix, cacheScope, webhookSecret, fetch, timeout, maxPages, retries, sleep and random. `tauri({ manifest? })`, `electron({ channels? })`, `android({ manifest?, transform?, compatible? })` and `generic()` return Adapters.
+`createUpserve(config: UpserveConfig): Upserve`
 
-`newer(candidate,current)`, `validVersion(version)` and `compareVersions(a,b)` implement strict semantic-version operations. `readText(response,maxBytes)` reads bounded UTF-8 metadata. `UpserveError(code,message,retryAt?)` conveys safe operational failures. Helpers and the contract types are exported at the package root; internal coordinator and schemas are not exported.
+Creates a real Hono application with `.fetch`, `.request`, `.route` and the normal Hono methods. It doesn't start a listener. Use the [quick start](/docs/quick-start) for a complete Node.js example or [embedding](/docs/embedding) to mount it.
+
+`Upserve` adds two trusted server-side methods:
+
+| Method                                           | What it does                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation, respecting failure cooldowns |
+| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry        |
+
+Both reject unknown application IDs with `UpserveError("missing", ...)`. Neither is an HTTP administration endpoint. Refresh doesn't clear all adapter manifests; see [cache refresh behavior](/docs/cache#make-new-releases-available).
+
+## defineConfig, defineProvider, defineAdapter and defineCache
+
+Each helper accepts an object satisfying its public contract and returns the same object with its inferred type. Use them for autocomplete and to catch missing methods without implementing a base class.
+
+| Helper                     | Contract        | Example                                    |
+| -------------------------- | --------------- | ------------------------------------------ |
+| `defineConfig(config)`     | `UpserveConfig` | [Configuration](/docs/configuration)       |
+| `defineProvider(provider)` | `Provider`      | [Catalog provider](/docs/custom-providers) |
+| `defineAdapter(adapter)`   | `Adapter`       | [Version adapter](/docs/custom-adapters)   |
+| `defineCache(cache)`       | `CacheStore`    | [Counted cache](/docs/custom-cache-stores) |
+
+They don't perform extra runtime wrapping or sandbox plugin code.
+
+## memoryCache
+
+`memoryCache(maxEntries = 1000): CacheStore`
+
+Creates a process-local least-recently-used store. `maxEntries` must be a positive integer. Reads and writes clone values so callers can't mutate stored entries. The limit counts metadata entries, not bytes. Restarting the process loses the data.
+
+## sqliteCache
+
+Import `sqliteCache` from `@neplex/upserve-sqlite`.
+
+`sqliteCache(filename: string): CacheStore & { close(): void }`
+
+Opens a Node SQLite metadata database in WAL mode. Create its parent directory first and close it after HTTP work drains. Entries survive restarts; old rows aren't automatically pruned. See the [persistent cache example](/docs/cache#persist-metadata-with-sqlite).
+
+## Version helpers
+
+| Function                                             | Result                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `validVersion(version: string): boolean`             | Tests a semantic version without coercing an arbitrary tag                                                           |
+| `newer(candidate: string, current: string): boolean` | Returns whether the candidate has greater semantic-version precedence; throws `invalid` if either version is invalid |
+| `compareVersions(a: string, b: string): number`      | Descending sort comparator for semantic versions; pass valid versions                                                |
+
+```ts title="versions.ts"
+import { compareVersions, newer, validVersion } from "@neplex/upserve";
+
+validVersion("1.2.0"); // true
+newer("1.2.0", "1.1.0"); // true
+
+const versions = ["1.9.0", "1.10.0"].sort(compareVersions);
+
+console.log(versions); // ["1.10.0", "1.9.0"]
+```
+
+Build metadata doesn't change precedence. Tags and provider IDs shouldn't be passed as versions.
+
+## readText
+
+`readText(response: Response, maxBytes = 1024 * 1024): Promise<string>`
+
+Reads UTF-8 metadata up to a byte limit, cancels on overflow and releases its stream reader. It returns an empty string when there's no body. Use it before parsing untrusted metadata; don't use it for installers.
+
+## UpserveError
+
+`new UpserveError(code, message, retryAt?)`
+
+| Property  | Type                                                                                 | Meaning                                                                      |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `code`    | `"configuration"`, `"auth"`, `"rate_limit"`, `"network"`, `"invalid"` or `"missing"` | Failure category                                                             |
+| `message` | `string`                                                                             | Safe operational explanation; don't include credentials or raw source bodies |
+| `retryAt` | `number` (optional)                                                                  | Earliest refresh time as absolute epoch milliseconds                         |
+
+An `auth` error clears the affected cached entry. Other failures can preserve previously validated data within its stale window. See [HTTP errors](/docs/errors) for the client mapping.
+
+## Integration factories
+
+### GitHubOptions
+
+`github(options: GitHubOptions): Provider` from `@neplex/upserve-github`.
+
+The [GitHub guide](/docs/github#options-you-may-need) lists all deployment options, requirements and defaults. These additional options support deterministic testing:
+
+| Option   | Type                            | Required | Default           | Purpose                                             |
+| -------- | ------------------------------- | -------- | ----------------- | --------------------------------------------------- |
+| `fetch`  | `typeof fetch`                  | No       | Global `fetch`    | Supply recorded API responses without real requests |
+| `sleep`  | `(ms: number) => Promise<void>` | No       | Timer-based delay | Control retry backoff                               |
+| `random` | `() => number`                  | No       | `Math.random`     | Supply jitter from zero to one                      |
+
+### TauriOptions
+
+`tauri(options?: TauriOptions): Adapter` from `@neplex/upserve-tauri`.
+
+| Option     | Type     | Required | Default         | Meaning                                     |
+| ---------- | -------- | -------- | --------------- | ------------------------------------------- |
+| `manifest` | `string` | No       | `"latest.json"` | Manifest asset name in the selected release |
+
+See [Tauri](/docs/tauri) for endpoint and manifest requirements.
+
+### ElectronOptions
+
+`electron(options?: ElectronOptions): Adapter` from `@neplex/upserve-electron`.
+
+| Option     | Type                     | Required | Default                                          | Meaning                                     |
+| ---------- | ------------------------ | -------- | ------------------------------------------------ | ------------------------------------------- |
+| `channels` | `Record<string, string>` | No       | `stable` maps to `latest`; others use their name | Maps URL channels to YAML filename prefixes |
+
+For example, `electron({ channels: { prerelease: "beta" } })` serves `beta.yml` on the `prerelease` channel. This doesn't replace application channel predicates. See [Electron](/docs/electron).
+
+### AndroidOptions
+
+`android(options?: AndroidOptions): Adapter` from `@neplex/upserve-android`.
+
+| Option       | Type                                                       | Required | Default                    | Meaning                                         |
+| ------------ | ---------------------------------------------------------- | -------- | -------------------------- | ----------------------------------------------- |
+| `manifest`   | `string`                                                   | No       | `"latest-android.json"`    | Manifest asset name                             |
+| `transform`  | `(input: unknown) => AndroidManifest`                      | No       | Use parsed input           | Translates another format before validation     |
+| `compatible` | `(manifest: AndroidManifest, request: Request) => boolean` | No       | No extra eligibility check | Returning false suppresses the offer with `204` |
+
+`AndroidManifest` is also exported by this package. Its fields and validation rules are in the [Android manifest reference](/docs/android#manifest-fields). `minimumVersion` and `versionCode` aren't automatic selection rules.
+
+### generic
+
+`generic(): Adapter` from `@neplex/upserve-generic` takes no options. Its response format is documented in [custom applications](/docs/generic).
+
+## Extension contracts
+
+The following types are exported from the core. Official integrations implement these same contracts.
+
+### Release and Asset
+
+| Release field     | Type      | Required | Meaning                                                                  |
+| ----------------- | --------- | -------- | ------------------------------------------------------------------------ |
+| `id`              | `string`  | Yes      | Stable provider identity                                                 |
+| `tag`             | `string`  | Yes      | Original upstream reference                                              |
+| `version`         | `string`  | Yes      | Valid semantic version                                                   |
+| `prerelease`      | `boolean` | Yes      | Channel-selection flag                                                   |
+| `assets`          | `Asset[]` | Yes      | Known manifests and downloadable files, up to 1,000                      |
+| `draft`, `yanked` | `boolean` | No       | Exclude the release when true                                            |
+| `notes`           | `string`  | No       | Release notes                                                            |
+| `publishedAt`     | `string`  | No       | RFC 3339 timestamp                                                       |
+| `metadata`        | `unknown` | No       | Serializable source-specific information; omitted from generic responses |
+
+An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+
+The core accepts at most 10,000 releases, filters drafts/yanked entries and sorts by version. Adapter manifests have additional validation requirements.
+
+### Provider
+
+| Member          | Signature                                                                         | Responsibility                                                  |
+| --------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `name`          | `string`                                                                          | Identify the integration                                        |
+| `scope`         | `string`                                                                          | Identify a nonsecret configuration/credential generation        |
+| `private`       | `boolean` (optional)                                                              | Require authorization and streamed downloads when true          |
+| `releases`      | `(context: ResourceContext) => Promise<Release[]>`                                | Return validated source data or throw                           |
+| `open`          | `(asset: Asset, request: Request, context: ResourceContext) => Promise<Response>` | Open only the known asset and preserve supported HTTP semantics |
+| `redirect`      | `(asset: Asset) => string` (optional)                                             | Return a validated public download destination                  |
+| `verifyWebhook` | `(request: Request, body: Uint8Array) => Promise<boolean>` (optional)             | Authenticate a bounded webhook body before refresh              |
+
+A provider with `verifyWebhook` gets `/webhooks/:application`. The official GitHub provider exposes that method even without a secret; verification then rejects every delivery. See the [provider tutorial](/docs/custom-providers) for implementation and testing.
+
+### ResourceContext
+
+| Member   | Signature                                                                             | Meaning                                                               |
+| -------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `signal` | `AbortSignal`                                                                         | Cancellation/deadline for the operation                               |
+| `cached` | `<T>(identity: string, load: (previous: T \| undefined) => Promise<T>) => Promise<T>` | Cache and coalesce a resource inside the application's provider scope |
+
+Validate inside `load` before returning. Provider resources have no stale-on-error fallback of their own; the outer release list can still supply stale data. Release lookup gets a 120-second outer deadline; adapter manifest loading gets 30 seconds. Providers should honor the signal and bound their own requests too.
+
+### Adapter
+
+`Adapter` requires `name: string` and `register(app: Hono, services: AdapterServices): void`. Register relative routes under the application's channel router. Names and route prefixes should avoid collisions. See the [adapter tutorial](/docs/custom-adapters).
+
+### AdapterServices
+
+| Member     | Signature                                                                       | Meaning                                                           |
+| ---------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `config`   | `AppConfig`                                                                     | This application's configuration                                  |
+| `channels` | `string[]`                                                                      | Configured channel names                                          |
+| `releases` | `(channel: string) => Promise<Release[]>`                                       | Filtered releases, newest first                                   |
+| `latest`   | `(channel: string) => Promise<Release \| undefined>`                            | First selected release                                            |
+| `manifest` | `<T>(release: Release, name: string, parse: (text: string) => T) => Promise<T>` | Read a known asset, validate before caching and parse on each use |
+| `assetUrl` | `(context: Context, release: Release, asset: Asset) => string`                  | Build a server delivery URL including a parent mount path         |
+| `deliver`  | `(request: Request, release: Release, asset: Asset) => Promise<Response>`       | Apply redirects or streaming to a known release asset             |
+
+`Context` is Hono's request context. Manifest bodies are limited to 1 MiB through `readText()` by default. A parse failure becomes an `invalid` error and doesn't replace previously validated text. Don't return invalid data from the parser.
+
+### CacheStore and CacheEntry
+
+| CacheStore method                     | Return type                        | Meaning                                 |
+| ------------------------------------- | ---------------------------------- | --------------------------------------- |
+| `get(key: string)`                    | `Promise<CacheEntry \| undefined>` | Return an independent entry or no entry |
+| `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
+| `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
+
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` and optional `retryAt: number`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. Preserve it rather than interpreting it as fresh empty data.
+
+`CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.

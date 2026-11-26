@@ -1,13 +1,15 @@
 {
   "name": "@upserve/docs",
   "private": true,
+  "homepage": "https://upserve.neplex.dev",
   "type": "module",
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
-    "build": "node scripts/llms.mjs && node scripts/social-images.mjs && next build --webpack",
+    "build": "node scripts/check-examples.mjs && node scripts/llms.mjs && node scripts/social-images.mjs && next build --webpack",
     "postinstall": "fumadocs-mdx",
     "social:generate": "node scripts/social-images.mjs",
-    "verify:export": "node scripts/verify-export.mjs"
+    "verify:export": "node scripts/verify-export.mjs",
+    "check:examples": "node scripts/check-examples.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",

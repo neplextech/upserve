@@ -1,12 +1,57 @@
 ---
-title: GitHub Releases and webhooks
-description: Practical guidance for github releases and webhooks.
+title: GitHub Releases
+description: Connect a public or private repository and understand tag matching and upstream requests.
 ---
 
-Install `@neplex/upserve-github` and call `github({ repository: 'owner/repo', tagPrefix: 'v' })`. Supply `token` from environment bindings for authenticated access. Tokens imply private mode by default. Explicit `private: false` is appropriate only for authenticated API access to a public repository. Use fine-grained read-only repository permissions.
+Use the GitHub provider to read published releases and their assets. Start with a public repository and add authentication only if you need it.
 
-Listings are paginated in pages of 100, up to 20 pages by default. Exceeding `maxPages` fails instead of silently truncating release history. ETags and Last-Modified validators are persisted with page data. Invalid pages fail validation. Network and 5xx failures receive two bounded retries with exponential backoff and jitter. 429 and rate-limit 403 responses establish a cooldown using Retry-After and reset headers. Headerless 403 failures fail closed with a 60-second delay; they may represent permissions or secondary throttling.
+Install `@neplex/upserve-github` alongside `@neplex/upserve` and your adapter packages. The [quick start](/docs/quick-start) includes a complete running server.
 
-`fetch`, `sleep` and `random` can be injected for deterministic tests. `timeout` defaults to 30 seconds per request. Credentials are only sent to api.github.com. Signed asset destinations are followed internally without Authorization.
+```ts title="provider.ts"
+import { github } from "@neplex/upserve-github";
 
-Set `webhookSecret` and configure GitHub's release webhook to POST `/webhooks/APP`. Upserve verifies HMAC-SHA256, the repository identity and event type before refreshing. Deliveries are bounded to 256 KiB and refreshes to one per ten seconds. Webhook routes use the signature rather than application bearer credentials. Replays within the cooldown cannot force upstream work. No admin HTTP invalidation API exists.
+export const provider = github({
+  repository: "owner/editor",
+  tagPrefix: "v",
+});
+```
+
+`repository` is an `owner/repository` pair, not a URL. Replace `owner/editor`. With the default prefix `v`, a tag `v1.2.0` produces version `1.2.0`. Use `tagPrefix: "editor-v"` for `editor-v1.2.0`, or an empty string for bare versions.
+
+## Prepare your releases
+
+Publish a release with a valid semantic version tag. Upload your adapter's original manifest and every artifact it references to that release. GitHub's source archives aren't a replacement for your application's updater artifacts.
+
+Upserve scans the release list instead of relying on GitHub's latest-release endpoint. It can therefore select stable and prerelease channels independently and order by semantic version. Drafts aren't offered. See [channels](/docs/channels) for prerelease selection.
+
+## Authenticate with GitHub
+
+Pass a token from your environment as `token`. For private repositories, use a read-only credential with access to repository contents. See GitHub's [release API permissions](https://docs.github.com/en/rest/releases/releases#list-releases) for the token type you're using.
+
+A token enables private mode by default, which requires downstream authorization. Read [private releases](/docs/security) before adding one. Set `private: false` only when you're deliberately authenticating API requests for a **public** repository.
+
+The official provider uses `api.github.com` and GitHub's release asset hosts. It doesn't accept a custom API origin or support GitHub Enterprise. Implement a [custom provider](/docs/custom-providers) for another host.
+
+## Requests and rate limits
+
+Upserve reuses cached GitHub pages rather than requesting them for every client check. When a page needs refreshing, its saved ETag and Last-Modified values become conditional request headers. A `304 Not Modified` reuses the previous page body.
+
+The provider fetches 100 releases per page, up to 20 pages by default. If all configured pages are full, it reports a pagination-limit error instead of silently omitting history. Increase `maxPages` if needed; the maximum is 100. This bounds release lookup and old blockmap searches.
+
+Network and server errors get two retries by default, using exponential backoff with jitter. Rate-limit responses establish a cooldown instead of repeated retries. GitHub's `Retry-After` and reset time influence when requests resume. A secondary-limit message without those headers pauses requests for one minute. Other `403` responses are treated as access failures. See [caching and rate limits](/docs/cache) for what your clients receive.
+
+## Options you may need
+
+| Option          | Type      | Required | Default                                  | Change it when                                                              |
+| --------------- | --------- | -------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| `repository`    | `string`  | Yes      | None                                     | Selecting the GitHub repository                                             |
+| `tagPrefix`     | `string`  | No       | `"v"`                                    | Your tags use a different prefix                                            |
+| `token`         | `string`  | No       | None                                     | Reading a private repository or authenticating public API requests          |
+| `private`       | `boolean` | No       | `Boolean(token)`                         | Explicitly distinguishing public authenticated access from private releases |
+| `webhookSecret` | `string`  | No       | None                                     | Enabling [release webhooks](/docs/webhooks)                                 |
+| `timeout`       | `number`  | No       | `30_000` ms                              | Downloads need more than 30 seconds                                         |
+| `maxPages`      | `number`  | No       | `20`                                     | Release history exceeds the page limit                                      |
+| `retries`       | `number`  | No       | `2`                                      | Tuning network/5xx retries, from `0` to `5`                                 |
+| `cacheScope`    | `string`  | No       | Random for tokens; `anonymous` otherwise | Reusing persistent data across restarts with a stable credential generation |
+
+For test injection options `fetch`, `sleep` and `random`, see the [API reference](/docs/api#githuboptions).

@@ -1,10 +1,144 @@
 ---
-title: Generic clients
-description: Practical guidance for generic clients.
+title: Custom applications
+description: Use JSON endpoints to check versions, discover assets and build your own update client.
 ---
 
-`generic()` from `@neplex/upserve-generic` exposes GET endpoints below `/APP/CHANNEL/generic`: `/latest`, `/releases`, `/versions/VERSION`, `/update/CURRENT`, and `/channels`.
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-Release responses contain id, tag, version, prerelease, notes, publishedAt and assets (name, size, server URL). Provider metadata and upstream URLs are omitted. Latest/update return 204 when absent or already current; specific-version misses return 404. Invalid semantic current versions return 422. Lists return `{ releases: [...] }`; channel discovery returns `{ channels: [...] }`.
+Use `generic()` when your application doesn't need a framework-specific updater protocol. It exposes release metadata as JSON. You choose the platform asset and implement download verification and installation in your client.
 
-`examples/client.py` is a Python client. It fetches an offer without installing executable code. Custom clients should authenticate when required, verify platform-specific integrity and signatures, and treat 204 as no update.
+## Run a generic update server
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+Replace `owner/editor` with your release repository.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/generic/update/1.0.0
+```
+
+## Read the response
+
+A newer release returns JSON shaped like this. IDs, filenames and lengths here are illustrative; your release supplies the actual values.
+
+```json
+{
+  "id": "123",
+  "tag": "v1.2.0",
+  "version": "1.2.0",
+  "prerelease": false,
+  "notes": "Fixes startup on older systems.",
+  "publishedAt": "2026-01-01T00:00:00Z",
+  "assets": [
+    {
+      "name": "editor-linux.tar.gz",
+      "size": 12345,
+      "url": "http://localhost:3000/editor/stable/assets/123/456"
+    }
+  ]
+}
+```
+
+`notes` and `publishedAt` may be omitted. Provider-specific `metadata`, raw asset IDs and upstream asset URLs aren't included in the generic response. Asset URLs retain a parent Hono mount path if you [embed the server](/docs/embedding).
+
+## Endpoints
+
+All paths below start with `/editor/stable/generic`.
+
+| Method and path          | Result                                                  |
+| ------------------------ | ------------------------------------------------------- |
+| `GET /latest`            | Latest release, or `204` if none exists                 |
+| `GET /update/:current`   | Latest release if newer than `current`, otherwise `204` |
+| `GET /versions/:version` | Exact version, or `404`                                 |
+| `GET /releases`          | `{ "releases": [...] }` in descending version order     |
+| `GET /channels`          | `{ "channels": ["stable", "prerelease"] }` by default   |
+
+The current version must be a semantic version such as `1.0.0`. An invalid current version returns `422` when there's a release to compare. The exact-version endpoint compares version strings, so don't include a Git tag prefix.
+
+## A Python client
+
+This Python 3 example checks for an update without installing anything. It uses only the standard library.
+
+```python title="check_update.py"
+import json
+import urllib.error
+import urllib.request
+
+url = "http://localhost:3000/editor/stable/generic/update/1.0.0"
+
+try:
+    with urllib.request.urlopen(url, timeout=10) as response:
+        if response.status == 204:
+            print("You're up to date.")
+        else:
+            release = json.load(response)
+            print(f"Version {release['version']} is available.")
+
+            for asset in release["assets"]:
+                print(f"{asset['name']}: {asset['url']}")
+except urllib.error.HTTPError as error:
+    print(f"Update check failed: HTTP {error.code}")
+except urllib.error.URLError as error:
+    print(f"Update server is unavailable: {error.reason}")
+```
+
+```sh
+python3 check_update.py
+```
+
+Choose an asset using a documented naming convention. The generic API doesn't infer operating systems or supply a universal checksum field. Publish a checksum/signature manifest or use a [custom adapter](/docs/custom-adapters) if your client needs one. Verify the downloaded software before executing it.
+
+For private releases, send your application's authorization header on both metadata and asset requests. Don't put credentials in the download URL.

@@ -1,0 +1,100 @@
+---
+title: Custom cache stores
+description: Implement metadata storage without reimplementing cache timing or refresh coordination.
+---
+
+A cache store saves entries. Upserve decides when they're fresh, when to refresh and whether stale data can still be used. You don't need to implement those policies in your store.
+
+Use the built-in memory or SQLite store unless you have another storage requirement. A shared store can make metadata available to several processes, but it doesn't coordinate their upstream requests.
+
+## 1. Implement the three methods
+
+Install `@neplex/upserve`. This complete example adds a write counter to a small in-memory store so you can see how the contract works. It isn't bounded; use `memoryCache()` for normal deployments.
+
+```ts title="counted-cache.ts"
+import { defineCache } from "@neplex/upserve";
+import type { CacheEntry } from "@neplex/upserve";
+
+export function countedCache() {
+  const entries = new Map<string, CacheEntry>();
+
+  let writes = 0;
+
+  return defineCache({
+    async get(key: string) {
+      const entry = entries.get(key);
+
+      return entry === undefined ? undefined : structuredClone(entry);
+    },
+
+    async set(key: string, entry: CacheEntry) {
+      entries.set(key, structuredClone(entry));
+      writes++;
+    },
+
+    async delete(key: string) {
+      entries.delete(key);
+    },
+
+    stats() {
+      return { writes };
+    },
+  });
+}
+```
+
+`defineCache()` preserves `stats()` on the returned object, but Upserve only calls `get`, `set` and `delete`.
+
+## 2. Register it
+
+Pass `cache: countedCache()` at the top level of `createUpserve()` or `defineConfig()`. Keep per-application lifetimes in `apps.editor.cache`. See [applications](/docs/configuration) for that distinction.
+
+## 3. Test storage behavior
+
+Install `vitest` as a development dependency, save this next to the implementation and run `npx vitest run counted-cache.test.ts`:
+
+```ts title="counted-cache.test.ts"
+import { expect, it } from "vitest";
+import { countedCache } from "./counted-cache.js";
+
+it("isolates values and preserves absolute timestamps", async () => {
+  const cache = countedCache();
+  const entry = {
+    value: { version: "1.2.0" },
+    freshUntil: 60_000,
+    staleUntil: 360_000,
+    retryAt: 30_000,
+  };
+
+  await cache.set("editor", entry);
+  entry.freshUntil = 0;
+
+  expect(await cache.get("editor")).toEqual({
+    value: { version: "1.2.0" },
+    freshUntil: 60_000,
+    staleUntil: 360_000,
+    retryAt: 30_000,
+  });
+
+  await cache.delete("editor");
+
+  expect(await cache.get("editor")).toBeUndefined();
+  expect(cache.stats()).toEqual({ writes: 1 });
+});
+```
+
+For a persistent implementation, add a test that closes and reopens the store before reading the entry.
+
+## 4. Adapt it to persistent storage
+
+Use the full key unchanged, make each write atomic and return independent values so callers can't mutate stored data. Preserve `freshUntil`, `staleUntil` and `retryAt` as **absolute epoch milliseconds**, not durations.
+
+Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps too. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
+
+Persistent caches can contain private release metadata. Restrict access, choose namespaces deliberately and plan retention for obsolete keys. Your store's lifecycle and cleanup methods are yours to manage; `CacheStore` has no close or prune hook.
+
+## Common mistakes
+
+A shared database isn't a distributed lock. Multiple Upserve processes can refresh simultaneously even when they read the same entries. Don't advertise global concurrency or rate-limit guarantees unless you implement and validate an additional coordination system yourself.
+
+Keep installer bytes out of metadata entries. Reject or surface storage failures rather than silently pretending that a write succeeded. See the [cache contract](/docs/api#cachestore-and-cacheentry) and [cache behavior](/docs/cache) for the full semantics.

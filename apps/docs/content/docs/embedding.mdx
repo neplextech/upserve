@@ -1,12 +1,121 @@
 ---
-title: Embedding and runtimes
-description: Practical guidance for embedding and runtimes.
+title: Hono, Node.js and Bun
+description: Mount Upserve in an existing Hono app or run its Fetch handler in your runtime.
 ---
 
-The return value of `createUpserve` is a Hono application. Mount it using `app.route('/updates', updates)`; asset URLs retain that mount prefix.
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-For Bun, run `Bun.serve({ port: 3000, fetch: updates.fetch })`. For Node, install `@hono/node-server` and call `serve({ fetch: updates.fetch, port: 3000 })`.
+`createUpserve()` returns a Hono application. You can use its Fetch handler directly or mount it in another Hono app. The library doesn't start a server, open a database or create timers on its own.
 
-The core uses Fetch, Web Crypto, AbortSignal and Web Streams. A Worker can export `updates` as its default Fetch handler; pass a request-scoped `background: task => ctx.waitUntil(task)` when constructing it if stale-while-revalidate is desired. Without this hook, refreshes are awaited and do not rely on background execution. Provider credentials belong in runtime bindings. SQLite and the CLI are Node-specific; use a custom cache in Workers.
+## Hono on Node.js
 
-Node and Bun are exercised by the runtime smoke script. The Worker example illustrates integration but has not been deployed or validated in Cloudflare. Do not treat it as a deployment guarantee.
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+const app = new Hono();
+
+app.get("/", (context) => context.text("Editor service"));
+app.route("/updates", updates);
+
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+```sh
+npx tsx server.ts
+curl http://localhost:3000/updates/editor/stable/generic/channels
+```
+
+Returned asset URLs retain `/updates`. For a dedicated Node.js listener, pass `updates.fetch` to `serve()` directly, as in the [quick start](/docs/quick-start). See [Hono's Node adapter guide](https://hono.dev/docs/getting-started/nodejs) for server options.
+
+## Bun
+
+Install the core, GitHub and generic packages; Bun supplies the HTTP server, so you don't need `@hono/node-server`.
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+```ts title="server.bun.ts"
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+Bun.serve({ port: 3000, fetch: updates.fetch });
+```
+
+```sh
+bun run server.bun.ts
+curl http://localhost:3000/editor/stable/generic/channels
+```
+
+## Other Fetch-based runtimes
+
+The core uses Fetch, Web Crypto, AbortSignal and Web Streams rather than Node APIs. A Fetch host can call `updates.fetch(request)`. The repository includes a Worker integration example, but it hasn't been deployed and validated on Cloudflare. Treat it as a starting point to test in your own environment, not a claim of verified production compatibility.
+
+Without `background`, expired-cache requests await refresh and don't depend on work continuing after the response. Hosts with a `waitUntil()` facility can pass a callback as `background: (task) => context.waitUntil(task)` when creating Upserve in the appropriate request scope. Don't capture an expired request context in a long-lived instance. Constructing a new instance per request also loses process-local coalescing between requests; choose your lifecycle deliberately.
+
+SQLite and the standalone CLI are Node-specific. Use memory or a [custom cache store](/docs/custom-cache-stores) in other runtimes.
+
+## What is validated
+
+The repository's runtime smoke script exercises built package entry points on Node.js and Bun. Protocol tests use the Hono Fetch handler directly. This doesn't prove installation behavior on every desktop OS, a Workers deployment or every serverless host.
+
+When embedding, you own listener shutdown, logs and health routes. The CLI's `/health/*` endpoints aren't added to the core application. See [standalone deployment](/docs/deployment) if you want those lifecycle features included.

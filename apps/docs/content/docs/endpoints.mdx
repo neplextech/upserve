@@ -1,0 +1,47 @@
+---
+title: HTTP endpoints
+description: Look up adapter routes, asset downloads, webhooks and CLI health checks.
+---
+
+Replace `APP` with your application ID and `CHANNEL` with a configured channel. If you've mounted Upserve under `/updates`, prefix every path below with `/updates`.
+
+Applications with `authorize()` check it before adapter and asset routes. Webhooks use signature verification separately. For response bodies and statuses, follow the linked integration guide.
+
+## Update protocols
+
+| Adapter                    | Method    | Path                                        | Result                                  |
+| -------------------------- | --------- | ------------------------------------------- | --------------------------------------- |
+| [Tauri](/docs/tauri)       | GET       | `/APP/CHANNEL/tauri/latest.json`            | Static manifest or `204`                |
+| Tauri                      | GET       | `/APP/CHANNEL/tauri/:target/:arch/:current` | Dynamic offer or `204`                  |
+| [Electron](/docs/electron) | GET, HEAD | `/APP/CHANNEL/electron/:file`               | YAML or a matching history asset        |
+| Electron                   | GET, HEAD | `/APP/CHANNEL/electron/:release/:file`      | Asset from an exact provider release ID |
+| [Android](/docs/android)   | GET       | `/APP/CHANNEL/android/latest.json`          | Manifest or `204`                       |
+| Android                    | GET       | `/APP/CHANNEL/android/update/:current`      | Newer eligible manifest or `204`        |
+| [Generic](/docs/generic)   | GET       | `/APP/CHANNEL/generic/latest`               | Latest release or `204`                 |
+| Generic                    | GET       | `/APP/CHANNEL/generic/update/:current`      | Newer release or `204`                  |
+| Generic                    | GET       | `/APP/CHANNEL/generic/versions/:version`    | Exact version or `404`                  |
+| Generic                    | GET       | `/APP/CHANNEL/generic/releases`             | `{ releases: [...] }`                   |
+| Generic                    | GET       | `/APP/CHANNEL/generic/channels`             | `{ channels: [...] }`                   |
+
+Current-version parameters are semantic versions, not tags. An unknown application or channel returns `404`. Generic channel discovery still requires a valid channel path, but doesn't fetch releases from GitHub.
+
+## Asset downloads
+
+`GET` and `HEAD /APP/CHANNEL/assets/:release/:asset` resolve a registered provider release ID and asset ID within the channel. Use URLs returned by the API instead of constructing them from filenames. Missing IDs return `404`.
+
+The result redirects or streams according to the [delivery policy](/docs/assets). Range and conditional responses depend on the provider; the GitHub provider supports single ranges.
+
+## Webhooks
+
+`POST /webhooks/APP` is registered when the provider implements `verifyWebhook`. The GitHub provider requires a valid signature, a release event and the correct repository. See [webhooks](/docs/webhooks) for setup and status codes.
+
+## Standalone health checks
+
+The CLI adds these endpoints; `createUpserve()` alone doesn't:
+
+| Path                | Response                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `GET /health/live`  | `200`, `{ "status": "ok" }`                                                          |
+| `GET /health/ready` | `200`, `{ "status": "ready" }`, or `503`, `{ "status": "draining" }` during shutdown |
+
+These checks don't contact GitHub. Test an actual update endpoint to verify repository access and manifests.

@@ -1,12 +1,18 @@
 ---
-title: Custom integrations
-description: Practical guidance for custom integrations.
+title: Extend Upserve
+description: Choose the extension point for a new release source, update protocol or metadata store.
 ---
 
-Official integrations use the public `Provider`, `Adapter` and `CacheStore` interfaces. The inference-preserving helpers are `defineProvider`, `defineAdapter` and `defineCache`.
+You can add a release source, update protocol or cache store without changing Upserve. Official integrations use the same public contracts available to your code.
 
-Providers implement name, scope, releases(context), open(asset, request, context), and optionally redirect and verifyWebhook. Scope is a nonsecret configuration/credential generation boundary. `context.cached(identity, load)` coalesces bounded metadata loads within the application scope; the previous validated response can contain conditional validators. Throw `UpserveError` with auth, rate_limit, network, invalid or missing. An optional retryAt sets a cooldown. Resolve empty lists only for confirmed absence, never temporary errors.
+| You want to change                          | Implement    | Start here                                       |
+| ------------------------------------------- | ------------ | ------------------------------------------------ |
+| Where release metadata and assets come from | `Provider`   | [Custom providers](/docs/custom-providers)       |
+| What routes and responses your updater uses | `Adapter`    | [Custom adapters](/docs/custom-adapters)         |
+| Where cached metadata is saved              | `CacheStore` | [Custom cache stores](/docs/custom-cache-stores) |
 
-Adapters implement name and register(router, services). Routes are mounted under `/APP/CHANNEL`. Use services.latest or releases with the route channel; services.manifest(release, name, parse) reads a known release asset and validates it before caching, services.assetUrl builds an authorized delivery URL, and services.deliver streams or redirects. Validate protocol manifests before returning offers. No unrelated application state is exposed. Avoid route collisions; duplicate adapter names are rejected.
+Start with the smallest contract that fits your task. For example, a new JSON response format usually needs an adapter, not a new provider. Your adapter can reuse GitHub and the existing cache.
 
-Caches implement asynchronous get, set and delete. Values are serializable CacheEntry objects and must be isolated by complete key. Preserve freshUntil, staleUntil and retryAt across restarts. Store metadata securely and use atomic writes. Examples in `examples/extensions.ts` implement all three contracts without privileged internal APIs.
+The `defineProvider()`, `defineAdapter()` and `defineCache()` helpers check the contract while preserving your object's inferred properties. They don't wrap or sandbox your code. Plugins run with the application's permissions, so only install integrations you trust.
+
+Each guide below includes a complete implementation and a deterministic test. The [API reference](/docs/api#extension-contracts) documents the full method signatures and shared services.

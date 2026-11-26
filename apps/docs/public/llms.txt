@@ -2,16 +2,29 @@
 
 Self-hostable application update distribution.
 
-- [api](/docs/api)
-- [assets](/docs/assets)
-- [cache](/docs/cache)
-- [configuration](/docs/configuration)
-- [deployment](/docs/deployment)
-- [embedding](/docs/embedding)
-- [extensions](/docs/extensions)
-- [generic](/docs/generic)
-- [github](/docs/github)
-- [index](/docs/)
-- [integrations](/docs/integrations)
-- [security](/docs/security)
-- [troubleshooting](/docs/troubleshooting)
+- [Introduction](/docs/): Share cached release metadata with your desktop and mobile update clients.
+- [Quick start](/docs/quick-start): Install Upserve, start a Node.js server and check a GitHub release.
+- [How Upserve works](/docs/how-it-works): Follow an update check from your application to a cached release and download.
+- [Choose an integration](/docs/integrations): Find the guide for your existing updater without changing its release protocol.
+- [Tauri](/docs/tauri): Connect a Tauri v2 updater to Upserve while keeping your existing signatures.
+- [Electron](/docs/electron): Serve electron-updater generic feeds, original YAML and differential download assets.
+- [Android](/docs/android): Publish APK update metadata and connect your own Android update client.
+- [Custom applications](/docs/generic): Use JSON endpoints to check versions, discover assets and build your own update client.
+- [Applications](/docs/configuration): Register applications, choose update adapters and set per-application behavior.
+- [Release channels](/docs/channels): Select stable, prerelease and custom release streams using semantic versions.
+- [GitHub Releases](/docs/github): Connect a public or private repository and understand tag matching and upstream requests.
+- [Authentication and security](/docs/security): Protect private release metadata and downloads without exposing GitHub credentials.
+- [Caching and rate limits](/docs/cache): Understand what clients receive when metadata expires, GitHub fails or a release changes.
+- [Asset delivery](/docs/assets): Choose redirects or streaming and configure large or differential downloads.
+- [Release webhooks](/docs/webhooks): Refresh a GitHub application after authenticated release events.
+- [Standalone CLI and Docker](/docs/deployment): Run Upserve as a service with typed configuration, health checks and persistent metadata.
+- [Hono, Node.js and Bun](/docs/embedding): Mount Upserve in an existing Hono app or run its Fetch handler in your runtime.
+- [Extend Upserve](/docs/extensions): Choose the extension point for a new release source, update protocol or metadata store.
+- [Custom providers](/docs/custom-providers): Implement and test a release source using the public Provider contract.
+- [Custom adapters](/docs/custom-adapters): Add and test a small update protocol while reusing release resolution and caching.
+- [Custom cache stores](/docs/custom-cache-stores): Implement metadata storage without reimplementing cache timing or refresh coordination.
+- [Public API](/docs/api): Find exported functions, integration options and extension contract semantics.
+- [Configuration options](/docs/configuration-reference): Look up required fields, defaults and advanced server settings.
+- [HTTP endpoints](/docs/endpoints): Look up adapter routes, asset downloads, webhooks and CLI health checks.
+- [Error responses](/docs/errors): Interpret HTTP statuses and decide when an update client should retry.
+- [Troubleshooting](/docs/troubleshooting): Diagnose missing updates, upstream errors, private downloads and deployment problems.

@@ -1,12 +1,62 @@
 ---
-title: Asset delivery and differential updates
-description: Practical guidance for asset delivery and differential updates.
+title: Asset delivery
+description: Choose redirects or streaming and configure large or differential downloads.
 ---
 
-Public GitHub assets redirect by default after validating the exact repository release-download path. Set `delivery: 'stream'` to stream through Upserve. Private providers always stream after downstream authorization.
+Upserve separates metadata caching from binary delivery. A cached update response doesn't mean the installer is stored on your server.
 
-Streaming forwards GET/HEAD, Range, If-Range, If-None-Match and If-Modified-Since. Content-Length, Content-Type, Content-Disposition, Content-Range, Accept-Ranges, ETag and Last-Modified are retained. Upstream 206, 304 and 416 responses retain their status. Web Streams provide backpressure; the client abort signal is forwarded. Requests have a 30-second default upstream timeout, including streamed response consumption in standard Fetch implementations. Increase provider `timeout` for large installers and slow links.
+## Redirect public downloads
 
-Only registered assets can be opened. Upserve does not proxy arbitrary URL query parameters. GitHub API redirects are restricted to the official release asset hosts and never receive credentials. Public clients follow GitHub-controlled download redirects themselves. Private responses never expose API credentials or signed redirect locations.
+Public GitHub assets redirect by default. Upserve validates the known asset URL and returns `302` to the GitHub release download path. The client follows GitHub's own download redirects. This keeps installer traffic off your server.
 
-Metadata is cached; installer binaries are streamed, not stored. Avoid CDN caching of private responses and ensure authorization headers are forwarded. Disable proxy buffering for large streaming responses. HTTP caches can honor public asset headers; use an external CDN deliberately rather than assuming binary mirroring.
+Only registered assets can be requested. Clients can't provide an arbitrary URL for Upserve to proxy.
+
+## Stream through Upserve
+
+Set `delivery: "stream"` on an application when downloads should pass through your server. Private providers always stream, regardless of that setting.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({
+        repository: "owner/editor",
+        timeout: 5 * 60 * 1000,
+      }),
+      adapters: [generic()],
+      delivery: "stream",
+    },
+  },
+});
+```
+
+This gives each upstream request up to five minutes. The GitHub default is 30 seconds, including streamed response consumption in standard Fetch implementations. Increase it for large installers and slow links, and check your proxy's timeout too.
+
+Streaming uses Web Streams and doesn't load the whole installer into memory. The upstream receives the client's cancellation signal. Stream backpressure allows the downstream's read speed to control consumption.
+
+## Resume and differential downloads
+
+GitHub asset streaming supports `GET` and `HEAD`. It forwards `Range`, `If-Range`, `If-None-Match` and `If-Modified-Since`, and preserves upstream `200`, `206`, `304` and `416` statuses. It retains download headers including length, media type, disposition, content range, ETag and Last-Modified.
+
+Use an actual asset URL returned by a manifest or generic response:
+
+```sh
+curl -I "$ASSET_URL"
+curl -D - -H 'Range: bytes=0-1023' "$ASSET_URL" -o first-kib.bin
+```
+
+For a valid range, expect `206 Partial Content` and a matching `Content-Range`. Add your downstream authorization header for private releases.
+
+Electron-updater uses these requests with blockmaps to reduce download size. Configure single-range requests for GitHub and keep old blockmaps available; see [Electron](/docs/electron#differential-downloads). Upserve doesn't generate differential data or guarantee multipart ranges.
+
+## Reverse proxies and CDNs
+
+Forward `Range`, conditional and authorization headers. Preserve partial-response statuses and headers, and disable response buffering for large streamed downloads.
+
+Public streamed assets use a one-hour HTTP cache lifetime. Protected streams use `private, no-store`. Don't let a CDN override private cache controls. Treat public artifact URLs as immutable, especially when enabling an external CDN.
+
+A CDN or binary mirror can be added independently, but Upserve has no built-in persistent binary storage. Never rewrite checksums or signature contents just to change a download location.

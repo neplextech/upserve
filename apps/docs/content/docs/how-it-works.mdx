@@ -1,0 +1,39 @@
+---
+title: How Upserve works
+description: Follow an update check from your application to a cached release and download.
+---
+
+An update check has two parts: deciding which release to offer and downloading its installer. Upserve caches the information needed for the first part. It redirects or streams the download for the second.
+
+## Follow an update check
+
+1. Your app requests an endpoint such as `/editor/stable/tauri/darwin/aarch64/1.0.0`.
+2. Upserve checks your access rule, if you've configured one.
+3. It looks for cached release metadata. If it needs fresh data, it asks the release provider.
+4. The adapter checks the selected release's manifest and answers in your updater's format.
+5. Your updater downloads the asset using the returned URL and verifies it before installation.
+
+If several clients check at once, Upserve fetches the same metadata once and shares the result between them. See [caching](/docs/cache) for expiry, outages and rate limits.
+
+## The pieces you configure
+
+| Piece       | What it does                                                 | Built-in choices                       |
+| ----------- | ------------------------------------------------------------ | -------------------------------------- |
+| Application | Groups one app's releases, access rules and update protocols | Your entries in `apps`                 |
+| Provider    | Reads releases and opens known assets                        | GitHub Releases                        |
+| Adapter     | Implements the HTTP protocol your updater expects            | Tauri, Electron, Android, generic JSON |
+| Cache store | Saves release and manifest metadata                          | Memory, optional SQLite                |
+
+An application can expose several adapters. For example, your desktop and Android builds can share a repository and application ID while using different manifests.
+
+## Versions, tags and IDs
+
+For a GitHub release tagged `v1.2.0`, the **version** is `1.2.0`, the **tag** is `v1.2.0`, and the **ID** is GitHub's release identifier. They serve different purposes. Upserve compares semantic versions to select updates; it doesn't compare GitHub IDs or publication dates.
+
+The default `stable` channel excludes releases marked as prereleases. The default `prerelease` channel includes only those releases. [Channels](/docs/channels) explains how to change that selection.
+
+## What stays in your release pipeline
+
+Keep building installers, generating checksums and signing updates in your existing pipeline. Upload the original manifest and every artifact it references to the same release. Upserve doesn't need signing private keys and doesn't generate signatures.
+
+Adapters validate the selected release before offering it. If its manifest is incomplete, Upserve returns an error rather than silently trying an older release. Correct the release assets, then refresh or wait for cache expiry.

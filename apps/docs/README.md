@@ -8,6 +8,14 @@ The build generates a 1200 × 630 PNG for every documentation route and the land
 
 Inter and JetBrains Mono are self-hosted through Fontsource. Framework silhouettes are vendored locally; attribution is in `public/brands/NOTICE.md`. The hero presents type-checked server and configuration examples for Tauri, Electron, Hono and standalone deployments. The cache demonstration uses simulated traffic and performs no upstream requests.
 
+## Editing the guides
+
+Content lives in `content/docs`. `meta.json` groups the sidebar while retaining the existing flat URLs. Use `editor` as the application ID and `owner/editor` as the repository placeholder. Tutorials should include a listener or CLI command and a request the reader can make to verify the result.
+
+Use Fumadocs tabs for package-manager alternatives and steps for sequential setup. Name complete TypeScript fences with `title="filename.ts"`. `pnpm --filter @upserve/docs check:examples` extracts those files, checks them against the workspace APIs and runs the extension tutorial tests. Focused snippets without a filename may depend on the surrounding application and are reviewed separately.
+
+Run `pnpm docs:build` and `pnpm --filter @upserve/docs verify:export` after editing. The build checks the named examples and regenerates `llms.txt`, `llms-full.txt`, search data and route-specific social images. Inspect affected pages on mobile as well as desktop.
+
 ## GitHub Pages
 
 `.github/workflows/docs.yml` builds documentation on pull requests and deploys successful `main` builds to GitHub Pages. Automatic runs are limited to `apps/docs/**`, `packages/config/**`, root dependency/toolchain files (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.npmrc`) and the docs workflow itself. Manual dispatch is also available. General CI and npm release checks use `check:code`, so unrelated application/package changes do not rebuild the site.

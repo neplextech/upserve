@@ -1,12 +1,51 @@
 ---
-title: Configuration and channels
-description: Practical guidance for configuration and channels.
+title: Applications
+description: Register applications, choose update adapters and set per-application behavior.
 ---
 
-`defineConfig` is an inference-preserving helper for TypeScript config files. The CLI loads the default export of `upserve.config.ts` using tsx. Config modules execute as trusted code.
+Use `createUpserve()` to configure an embedded server. Use `defineConfig()` in `upserve.config.ts` for the standalone CLI. The configuration shape is the same, and `defineConfig()` gives you autocomplete and type checking.
 
-Each application has `provider`, `adapters`, optional `authorize`, `channels`, `cache` and `delivery`. App and channel names use letters, numbers, dots, underscores and hyphens, up to 128 characters. Default channels are `stable` (non-prerelease) and `prerelease` (prerelease only). Override them with named predicates, for example `channels: { beta: release => release.version.includes('-beta.') }`.
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { tauri } from "@neplex/upserve-tauri";
+import { android } from "@neplex/upserve-android";
 
-Release IDs identify provider objects; tags identify upstream references; `version` is a validated semantic version. They are separate fields. GitHub defaults to stripping `v`; set `tagPrefix: 'app-v'` or `tagPrefix: ''` deliberately. Stable selection scans releases instead of calling GitHub's latest endpoint. Draft and yanked releases are removed. The newest semantic version wins, regardless of publication order.
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [tauri(), android()],
+    },
+  },
+});
+```
 
-Application and channel boundaries cannot be selected by arbitrary upstream URLs. Cache TTLs are milliseconds. `concurrency` defaults to 4 and accepts 1–64.
+This application exposes Tauri and Android endpoints below `/editor/stable` and `/editor/prerelease`. Register another entry in `apps` to serve a second application with its own provider and policies.
+
+For this configuration, install `@neplex/upserve`, `@neplex/upserve-github`, `@neplex/upserve-tauri` and `@neplex/upserve-android`, plus `@neplex/upserve-cli` if you're using the CLI. The [quick start](/docs/quick-start) shows how to serve an embedded configuration.
+
+## Common application options
+
+| Option      | Type                                                | Required              | Default                    | Use it to                                        |
+| ----------- | --------------------------------------------------- | --------------------- | -------------------------- | ------------------------------------------------ |
+| `provider`  | `Provider`                                          | Yes                   | None                       | Choose where releases come from                  |
+| `adapters`  | `Adapter[]`                                         | Yes                   | None                       | Expose the update protocols you need             |
+| `channels`  | `Record<string, (release: Release) => boolean>`     | No                    | `stable` and `prerelease`  | Select releases for each channel                 |
+| `authorize` | `(request: Request) => boolean \| Promise<boolean>` | For private providers | No access check            | Decide who can read metadata and download assets |
+| `cache`     | `CachePolicy`                                       | No                    | See [caching](/docs/cache) | Change metadata lifetimes for this application   |
+| `delivery`  | `"redirect" \| "stream"`                            | No                    | Redirect when supported    | Send public downloads through your server        |
+
+App and channel names become URL segments. Start them with a letter or number, then use letters, numbers, `.`, `_` or `-`, up to 128 characters. Adapter names must be unique within an application.
+
+## Keep the first configuration small
+
+For a public repository, start with `provider` and `adapters`. You don't need custom cache keys, a persistent store or authorization to try Upserve.
+
+Add [authentication](/docs/security) for private releases, [custom channels](/docs/channels) when you publish beta builds, or [SQLite](/docs/cache#persist-metadata-with-sqlite) when you want cached metadata to survive a restart.
+
+## Advanced server options
+
+The top-level `cache` chooses a store for the server; `apps.editor.cache` controls lifetimes. These are different options. `namespace`, `concurrency`, `background` and `now` are also top-level options. See the [configuration reference](/docs/configuration-reference) for their defaults and examples.
+
+Configuration files and plugins execute as trusted code. Only load configuration you control.

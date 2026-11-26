@@ -1,0 +1,64 @@
+---
+title: Release webhooks
+description: Refresh a GitHub application after authenticated release events.
+---
+
+A webhook makes newly published releases available without waiting for the next expired-cache request. GitHub sends a signed event, and Upserve verifies it before refreshing the application's release list.
+
+## Configure the secret
+
+Generate a long random secret and store it in both your server environment and GitHub's webhook configuration. Don't commit it.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
+
+if (!webhookSecret) throw new Error("GITHUB_WEBHOOK_SECRET is required");
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor", webhookSecret }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+This example assumes a public repository. Add repository credentials and downstream authorization separately if needed.
+
+## Add the GitHub webhook
+
+In your repository's **Settings → Webhooks**, create a webhook with:
+
+| Setting      | Value                                         |
+| ------------ | --------------------------------------------- |
+| Payload URL  | `https://updates.example.com/webhooks/editor` |
+| Content type | `application/json`                            |
+| Secret       | The value of `GITHUB_WEBHOOK_SECRET`          |
+| Events       | Release events                                |
+
+Replace the host and application ID. If Upserve is mounted at `/updates`, use `/updates/webhooks/editor` instead.
+
+Upserve verifies the HMAC-SHA256 signature, the `release` event type and `repository.full_name`. It accepts release events regardless of their action and refreshes from GitHub rather than trusting the event's release data.
+
+## Test a delivery
+
+Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. A successful refresh responds:
+
+```json
+{ "refreshed": true }
+```
+
+A missing or incorrect signature, wrong repository or unsupported event type returns `401`. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken.
+
+Bodies are limited to 256 KiB. Valid deliveries are limited to one refresh per application every ten seconds in each process; faster deliveries return `429`. If the refresh fails, the response uses the normal [error format](/docs/errors).
+
+## What a webhook refreshes
+
+The event forces release-list and provider-page revalidation while respecting upstream cooldowns. It doesn't purge every cached adapter manifest. Publish immutable artifacts in new releases instead of replacing a manifest in place.
+
+Webhook access uses its signature, not your application's `authorize()` callback. Don't add an open refresh route for clients. For trusted scheduled work in an embedded server, use `updates.refresh("editor")` directly.

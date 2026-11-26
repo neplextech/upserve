@@ -1,38 +1,17 @@
 ---
-title: Tauri, Electron and Android
-description: Practical guidance for tauri, electron and android.
+title: Choose an integration
+description: Find the guide for your existing updater without changing its release protocol.
 ---
 
-## Tauri v2
+Choose the guide that matches the updater already installed in your application. Each guide walks through the packages, release assets, server setup and client configuration.
 
-Use `tauri()` from `@neplex/upserve-tauri`. Publish Tauri's `latest.json` and its referenced binaries in the same release. Set the updater endpoint to `/APP/stable/tauri/{{target}}/{{arch}}/{{current_version}}`. `/APP/stable/tauri/latest.json` provides static manifest compatibility. `manifest` overrides the source filename. Signatures are retained byte for byte. Invalid versions, missing signatures or missing referenced binaries fail closed; no applicable platform/update returns 204. Custom Tauri targets can use the static endpoint.
+| Your application                            | Guide                                | What you publish                                 |
+| ------------------------------------------- | ------------------------------------ | ------------------------------------------------ |
+| Tauri v2 desktop app                        | [Tauri](/docs/tauri)                 | `latest.json`, signed updater artifacts          |
+| electron-builder app using electron-updater | [Electron](/docs/electron)           | Platform YAML, installers and existing blockmaps |
+| Android app distributed outside Google Play | [Android](/docs/android)             | `latest-android.json` and an APK                 |
+| CLI, desktop app or another custom client   | [Custom applications](/docs/generic) | Release assets; no adapter manifest required     |
 
-## electron-builder / electron-updater
+Electron's native `autoUpdater` uses other protocols and isn't supported by the Electron adapter. Android doesn't have a universal sideloaded update protocol, so you'll implement the client check and installation flow yourself.
 
-Use `electron()` from `@neplex/upserve-electron` with generic feed URL `/APP/stable/electron/`. Stable maps to `latest`; use `channels: { prerelease: 'beta' }` in adapter options for beta feeds. Supported manifests include `latest.yml`, `latest-mac.yml`, `latest-linux.yml` and Linux architecture suffixes. Publish the original YAML, NSIS installer or macOS ZIP/DMG or Linux artifacts, and blockmaps. The YAML must have version, files, SHA-512 base64 checksums and sizes matching release assets. Paths must be relative basenames in the same release. YAML is returned unchanged.
-
-Web installers (`packages`), absolute external file URLs and signed feed envelopes are rejected. Electron's native Squirrel autoUpdater is a different protocol and is unsupported. Differential generation is outside scope. Existing `.blockmap` assets and Range requests are passed upstream. Configure electron-updater's generic provider `useMultipleRangeRequest: false` for GitHub delivery, which supports single ranges; do not assume multipart range support. Keep old release artifacts available for old blockmap lookups. Downloads are verified by the client using the original checksums.
-
-## Direct Android APKs
-
-Use `android()` from `@neplex/upserve-android`. Publish `latest-android.json` (override `manifest` if needed). Endpoints are `/APP/stable/android/latest.json` and `/APP/stable/android/update/CURRENT`.
-
-```json
-{
-  "version": "1.2.0",
-  "versionCode": 12,
-  "notes": "Release notes",
-  "pub_date": "2026-01-01T00:00:00Z",
-  "android": {
-    "url": "https://github.com/owner/repo/releases/download/v1.2.0/app.apk",
-    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "size": 12345
-  }
-}
-```
-
-The checksum shown is illustrative; generate the actual digest in release CI. `versionCode`, `minimumVersion` and `compatibility` are optional. A `transform(input)` hook maps existing formats. `compatible(manifest, request)` can enforce ABI, SDK or minimum-version policies; default behavior compares semantic versions only. Clients must verify size, SHA-256, package name and signing certificate before prompting installation. Upserve never requests signing keys.
-
-OPPA's current generator and Rust consumer were inspected locally: their manifest uses version, notes, pub_date and android URL/SHA-256/size and works with this default format. No OPPA behavior is embedded in the server.
-
-Protocol references: [Tauri updater](https://v2.tauri.app/plugin/updater/), [electron-updater generic provider source](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/GenericProvider.ts).
+Need a different protocol? You can [write an adapter](/docs/custom-adapters) without changing Upserve. You don't need to understand the extension contracts to use a built-in integration.

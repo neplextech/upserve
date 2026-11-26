@@ -1,0 +1,98 @@
+---
+title: Custom providers
+description: Implement and test a release source using the public Provider contract.
+---
+
+Write a provider when your releases live somewhere other than GitHub, or when you want to supply a catalog you already maintain. A provider returns normalized releases and opens their known assets. It doesn't define HTTP update routes.
+
+Upserve handles channel selection, release validation, metadata lifetimes and request coalescing. Your provider handles access to the source, source-specific validation, credentials and safe asset delivery.
+
+## 1. Return a small catalog
+
+Install `@neplex/upserve` and `@neplex/upserve-generic`. This complete provider serves a fixed metadata-only release. It deliberately publishes no assets, so it needs no network access and is easy to test.
+
+```ts title="catalog-provider.ts"
+import { defineProvider, UpserveError } from "@neplex/upserve";
+import type { Release } from "@neplex/upserve";
+
+export function catalogProvider() {
+  const releases: Release[] = [
+    {
+      id: "release-12",
+      tag: "v1.2.0",
+      version: "1.2.0",
+      prerelease: false,
+      notes: "Fixes startup on older systems.",
+      assets: [],
+    },
+  ];
+
+  return defineProvider({
+    name: "catalog",
+    scope: "editor-catalog-v1",
+
+    async releases() {
+      return structuredClone(releases);
+    },
+
+    async open() {
+      throw new UpserveError("missing", "This catalog has no downloadable assets");
+    },
+  });
+}
+```
+
+`id` is a stable source identifier, `tag` is the original reference, and `version` is a semantic version used for comparison. Don't put a tag such as `editor-v1.2.0` into `version`.
+
+## 2. Register and test it
+
+Install `vitest` as a development dependency. Save this next to `catalog-provider.ts` and run `npx vitest run catalog-provider.test.ts`:
+
+```ts title="catalog-provider.test.ts"
+import { expect, it } from "vitest";
+import { createUpserve } from "@neplex/upserve";
+import { generic } from "@neplex/upserve-generic";
+import { catalogProvider } from "./catalog-provider.js";
+
+it("serves the catalog through the generic adapter", async () => {
+  const updates = createUpserve({
+    apps: {
+      editor: { provider: catalogProvider(), adapters: [generic()] },
+    },
+  });
+
+  const response = await updates.request("/editor/stable/generic/latest");
+  const release = await response.json();
+
+  expect(response.status).toBe(200);
+  expect(release.version).toBe("1.2.0");
+  expect(release.assets).toEqual([]);
+});
+```
+
+The same configuration can be passed to the CLI or a [runtime listener](/docs/embedding). Replace `generic()` with any adapter once your source publishes that adapter's required manifests and artifacts.
+
+## 3. Load from a real source
+
+Replace the fixed array with your source request. Accept `context` in `releases(context)` and use `context.cached("catalog-page", loader)` for reusable source resources. The loader receives its previous cached value, which can include an ETag or Last-Modified validator.
+
+Validate the source response **inside the loader before returning it**. On a conditional `304`, return the previous validated value. For JSON, use `readText(response, maxBytes)` to bound the body before parsing. A source that pages results must enforce its own page limit.
+
+Return `[]` only when the source confirms there are no releases. Throw `UpserveError("network", "Source unavailable")` for temporary failures, `"invalid"` for malformed metadata, `"auth"` for rejected credentials or `"rate_limit"` with an absolute `retryAt` timestamp for throttling. Never include tokens or raw source error bodies in messages.
+
+## 4. Add asset delivery
+
+For each real asset, return its stable `id`, unique `name`, byte `size` and safe `url`. Implement `open(asset, request, context)` to fetch only that known asset. Preserve the request's range/conditional headers, use `context.signal` for cancellation and return a streaming response. Document which HTTP features your source supports.
+
+If you implement `redirect(asset)`, validate the public destination before returning it. Validate every redirect in `open()` too, and don't forward credentials to another host. Without `redirect()`, Upserve uses `open()` even for public assets.
+
+For private data, set `private: true`; registration will then require `authorize()` and downloads will stream through the server. Change the nonsecret `scope` whenever the source configuration or credential permissions change.
+
+## Common mistakes
+
+- Returning `[]` during an outage withdraws every release. Throw instead.
+- Using client input as an upstream URL turns the server into a proxy. Resolve assets from your trusted catalog.
+- Caching malformed source responses inside `context.cached()` can preserve bad data. Validate before returning.
+- Treating `scope` as a token risks storing secrets in keys. Use a credential generation name.
+
+The [Provider and ResourceContext reference](/docs/api#provider) covers the optional webhook hook and exact signatures. Add tests for malformed data, denied access, ranges, redirects and cancellation before using a network-backed provider for executable downloads.

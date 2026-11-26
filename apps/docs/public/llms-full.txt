@@ -1,235 +1,2421 @@
 ---
-title: Public API reference
-description: Practical guidance for public api reference.
+title: Introduction
+description: Share cached release metadata with your desktop and mobile update clients.
 ---
 
-`createUpserve(config): Hono & { refresh(app): Promise<void>; invalidate(app): Promise<void> }` creates the Fetch application. `defineConfig(config)` preserves inference. Configuration fields and contracts have generated declaration JSDoc in the package output.
+Upserve is a self-hostable application update server. It sits between your release repository and your installed applications, so every update check doesn't need its own request to GitHub.
 
-`memoryCache(maxEntries = 1000)` returns a CacheStore. `sqliteCache(filename)` adds close(). The core never imports SQLite or Node modules.
+You publish releases and signed artifacts as usual. Upserve finds the right release, caches its metadata and answers your application's update protocol. Public downloads redirect to GitHub by default. Private downloads pass through your server after you authorize the request.
 
-`github(options)` accepts repository, token, private, tagPrefix, cacheScope, webhookSecret, fetch, timeout, maxPages, retries, sleep and random. `tauri({ manifest? })`, `electron({ channels? })`, `android({ manifest?, transform?, compatible? })` and `generic()` return Adapters.
+## When to use Upserve
 
-`newer(candidate,current)`, `validVersion(version)` and `compareVersions(a,b)` implement strict semantic-version operations. `readText(response,maxBytes)` reads bounded UTF-8 metadata. `UpserveError(code,message,retryAt?)` conveys safe operational failures. Helpers and the contract types are exported at the package root; internal coordinator and schemas are not exported.
+Use Upserve when you want a stable update endpoint, shared caching or one place to manage release channels across several applications. You can run it as a standalone service or add its Hono application to a server you already have.
 
+It works with:
 
----
-title: Asset delivery and differential updates
-description: Practical guidance for asset delivery and differential updates.
----
+- **Tauri v2**, using your existing updater manifests and signatures.
+- **electron-builder and electron-updater**, using the generic provider feed.
+- **Android APKs**, using an Upserve JSON manifest and your own update client.
+- **Custom applications**, using the generic JSON API or an adapter you write.
 
-Public GitHub assets redirect by default after validating the exact repository release-download path. Set `delivery: 'stream'` to stream through Upserve. Private providers always stream after downstream authorization.
+Upserve doesn't build your app, sign it or generate binary patches. Your release pipeline and updater remain responsible for those tasks. It caches update metadata, not installer binaries.
 
-Streaming forwards GET/HEAD, Range, If-Range, If-None-Match and If-Modified-Since. Content-Length, Content-Type, Content-Disposition, Content-Range, Accept-Ranges, ETag and Last-Modified are retained. Upstream 206, 304 and 416 responses retain their status. Web Streams provide backpressure; the client abort signal is forwarded. Requests have a 30-second default upstream timeout, including streamed response consumption in standard Fetch implementations. Increase provider `timeout` for large installers and slow links.
+## Start here
 
-Only registered assets can be opened. Upserve does not proxy arbitrary URL query parameters. GitHub API redirects are restricted to the official release asset hosts and never receive credentials. Public clients follow GitHub-controlled download redirects themselves. Private responses never expose API credentials or signed redirect locations.
+Follow the [quick start](/docs/quick-start) to run a server and make your first update request. You'll need Node.js 22.13 or newer and a GitHub repository with a published release. Node.js 24 is recommended for the standalone service and SQLite cache.
 
-Metadata is cached; installer binaries are streamed, not stored. Avoid CDN caching of private responses and ensure authorization headers are forwarded. Disable proxy buffering for large streaming responses. HTTP caches can honor public asset headers; use an external CDN deliberately rather than assuming binary mirroring.
+Already have an updater? Start with [Tauri](/docs/tauri), [Electron](/docs/electron), [Android](/docs/android) or [custom applications](/docs/generic). Each guide includes the server setup and the client endpoint.
 
+## A note about availability
 
----
-title: Cache behavior and failures
-description: Practical guidance for cache behavior and failures.
----
-
-The default memory cache is a process-local LRU with 1,000 entries. Default fresh TTL is 60 seconds, negative TTL 15 seconds and stale-if-error window five minutes after freshness ends. Configure per application using `cache: { ttl, negativeTtl, staleIfError }`.
-
-Concurrent loads of the same key share a promise. Refresh concurrency is bounded per Upserve instance. Supply `background` to return stale data while a refresh runs; otherwise the caller awaits refresh. Failure cooldowns prevent repeated cold-cache traffic from hammering the upstream. A cold failure returns 503; a missing release list is successful empty data. Invalid metadata cannot replace the last validated release list. Authentication failures fail closed. After the stale window expires, temporary failures return 503.
-
-Successful empty lists replace the old state, so deleted and withdrawn releases disappear after refresh. Cached data can remain visible until its freshness window ends; webhook refresh reduces this delay. Programmatic `await updates.refresh('editor')` bypasses freshness while respecting cooldowns; `await updates.invalidate('editor')` expires release selection. Explicit refresh also revalidates provider page resources. There are no client query parameters that bypass caches.
-
-SQLite persists JSON metadata with WAL and uses `node:sqlite`:
-
-```ts
-import { sqliteCache } from "@neplex/upserve-sqlite";
-const cache = sqliteCache("./data/metadata.sqlite");
-// Pass cache to createUpserve; call cache.close() after requests drain.
-```
-
-Create the parent directory first. Use a deployment `namespace` and provider `cacheScope` when sharing persistent storage across restarts. Rotate both when security boundaries change. Authenticated providers default to a random credential scope unless explicitly configured, preventing accidental cross-credential reuse. Cache keys never contain raw tokens.
-
-Coordination and cooldown state are local to one process. Shared cache deployments do not have distributed locking or globally enforced upstream concurrency. Deploy one instance per credential scope when that guarantee matters. No permanent binary cache or automatic disk pruning is provided; monitor persistent metadata storage.
-
-Client metadata responses use ETags. Private responses are `private, no-store`; public metadata requires revalidation. Liveness and readiness do not probe GitHub.
+The installation commands in these guides use the intended public package names. During initial private development, the packages might not be on npm yet. If installation returns a package-not-found error, use the [repository checkout instructions](/docs/quick-start#run-from-a-repository-checkout).
 
 
 ---
-title: Configuration and channels
-description: Practical guidance for configuration and channels.
+title: Quick start
+description: Install Upserve, start a Node.js server and check a GitHub release.
 ---
 
-`defineConfig` is an inference-preserving helper for TypeScript config files. The CLI loads the default export of `upserve.config.ts` using tsx. Config modules execute as trusted code.
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-Each application has `provider`, `adapters`, optional `authorize`, `channels`, `cache` and `delivery`. App and channel names use letters, numbers, dots, underscores and hyphens, up to 128 characters. Default channels are `stable` (non-prerelease) and `prerelease` (prerelease only). Override them with named predicates, for example `channels: { beta: release => release.version.includes('-beta.') }`.
+import { Step, Steps } from "fumadocs-ui/components/steps";
 
-Release IDs identify provider objects; tags identify upstream references; `version` is a validated semantic version. They are separate fields. GitHub defaults to stripping `v`; set `tagPrefix: 'app-v'` or `tagPrefix: ''` deliberately. Stable selection scans releases instead of calling GitHub's latest endpoint. Draft and yanked releases are removed. The newest semantic version wins, regardless of publication order.
+This guide runs an update server for an application called **Editor**. Its application ID is `editor`, and its release repository is `owner/editor`. Replace `owner/editor` with your own public GitHub repository everywhere it appears.
 
-Application and channel boundaries cannot be selected by arbitrary upstream URLs. Cache TTLs are milliseconds. `concurrency` defaults to 4 and accepts 1–64.
+You'll need Node.js 22.13 or newer, a package manager and at least one published release with a semantic version tag such as `v1.2.0`. You don't need a database or a GitHub token for a public repository.
 
+<Steps>
+<Step>
 
----
-title: CLI, Docker and operations
-description: Practical guidance for cli, docker and operations.
----
+### Install the server packages
 
-Install `@neplex/upserve-cli` and integrations. Run `npx @neplex/upserve-cli init`, edit upserve.config.ts, then `npx @neplex/upserve-cli start`. Before initial npm publication, run the workspace CLI through `pnpm exec tsx packages/cli/src/index.ts`.
-
-Environment variables: UPSERVE_CONFIG (default upserve.config.ts), HOST (0.0.0.0), PORT (3000), UPSERVE_CACHE_DIR (optional persistent SQLite directory). Config files read secrets from environment variables explicitly; Upserve does not load .env automatically. Startup logs are structured JSON without secret error serialization. SIGINT/SIGTERM stop accepting work and allow ten seconds to drain. `/health/live` checks process health; `/health/ready` checks readiness to receive traffic, not upstream availability.
-
-Build the root Dockerfile with `docker build -t upserve .`. Use `docker compose up --build` after editing examples/upserve.config.ts. Mount a config and a writable data volume; the runtime UID is 10001. In Coolify, select Dockerfile deployment, expose port 3000, set secrets and mount `/data`. The default image is Node-specific and does not require Redis or PostgreSQL.
-
-Use HTTPS at a reverse proxy. Forward the canonical Host, Range and conditional headers; disable response buffering. Do not cache private routes at a CDN. Use one process for strict process-local refresh coordination. Without timers, the first request after freshness ends refreshes opportunistically. Webhooks or trusted external scheduling can call the in-process refresh API; no open refresh endpoint is provided.
-
-
----
-title: Embedding and runtimes
-description: Practical guidance for embedding and runtimes.
----
-
-The return value of `createUpserve` is a Hono application. Mount it using `app.route('/updates', updates)`; asset URLs retain that mount prefix.
-
-For Bun, run `Bun.serve({ port: 3000, fetch: updates.fetch })`. For Node, install `@hono/node-server` and call `serve({ fetch: updates.fetch, port: 3000 })`.
-
-The core uses Fetch, Web Crypto, AbortSignal and Web Streams. A Worker can export `updates` as its default Fetch handler; pass a request-scoped `background: task => ctx.waitUntil(task)` when constructing it if stale-while-revalidate is desired. Without this hook, refreshes are awaited and do not rely on background execution. Provider credentials belong in runtime bindings. SQLite and the CLI are Node-specific; use a custom cache in Workers.
-
-Node and Bun are exercised by the runtime smoke script. The Worker example illustrates integration but has not been deployed or validated in Cloudflare. Do not treat it as a deployment guarantee.
-
-
----
-title: Custom integrations
-description: Practical guidance for custom integrations.
----
-
-Official integrations use the public `Provider`, `Adapter` and `CacheStore` interfaces. The inference-preserving helpers are `defineProvider`, `defineAdapter` and `defineCache`.
-
-Providers implement name, scope, releases(context), open(asset, request, context), and optionally redirect and verifyWebhook. Scope is a nonsecret configuration/credential generation boundary. `context.cached(identity, load)` coalesces bounded metadata loads within the application scope; the previous validated response can contain conditional validators. Throw `UpserveError` with auth, rate_limit, network, invalid or missing. An optional retryAt sets a cooldown. Resolve empty lists only for confirmed absence, never temporary errors.
-
-Adapters implement name and register(router, services). Routes are mounted under `/APP/CHANNEL`. Use services.latest or releases with the route channel; services.manifest(release, name, parse) reads a known release asset and validates it before caching, services.assetUrl builds an authorized delivery URL, and services.deliver streams or redirects. Validate protocol manifests before returning offers. No unrelated application state is exposed. Avoid route collisions; duplicate adapter names are rejected.
-
-Caches implement asynchronous get, set and delete. Values are serializable CacheEntry objects and must be isolated by complete key. Preserve freshUntil, staleUntil and retryAt across restarts. Store metadata securely and use atomic writes. Examples in `examples/extensions.ts` implement all three contracts without privileged internal APIs.
-
-
----
-title: Generic clients
-description: Practical guidance for generic clients.
----
-
-`generic()` from `@neplex/upserve-generic` exposes GET endpoints below `/APP/CHANNEL/generic`: `/latest`, `/releases`, `/versions/VERSION`, `/update/CURRENT`, and `/channels`.
-
-Release responses contain id, tag, version, prerelease, notes, publishedAt and assets (name, size, server URL). Provider metadata and upstream URLs are omitted. Latest/update return 204 when absent or already current; specific-version misses return 404. Invalid semantic current versions return 422. Lists return `{ releases: [...] }`; channel discovery returns `{ channels: [...] }`.
-
-`examples/client.py` is a Python client. It fetches an offer without installing executable code. Custom clients should authenticate when required, verify platform-specific integrity and signatures, and treat 204 as no update.
-
-
----
-title: GitHub Releases and webhooks
-description: Practical guidance for github releases and webhooks.
----
-
-Install `@neplex/upserve-github` and call `github({ repository: 'owner/repo', tagPrefix: 'v' })`. Supply `token` from environment bindings for authenticated access. Tokens imply private mode by default. Explicit `private: false` is appropriate only for authenticated API access to a public repository. Use fine-grained read-only repository permissions.
-
-Listings are paginated in pages of 100, up to 20 pages by default. Exceeding `maxPages` fails instead of silently truncating release history. ETags and Last-Modified validators are persisted with page data. Invalid pages fail validation. Network and 5xx failures receive two bounded retries with exponential backoff and jitter. 429 and rate-limit 403 responses establish a cooldown using Retry-After and reset headers. Headerless 403 failures fail closed with a 60-second delay; they may represent permissions or secondary throttling.
-
-`fetch`, `sleep` and `random` can be injected for deterministic tests. `timeout` defaults to 30 seconds per request. Credentials are only sent to api.github.com. Signed asset destinations are followed internally without Authorization.
-
-Set `webhookSecret` and configure GitHub's release webhook to POST `/webhooks/APP`. Upserve verifies HMAC-SHA256, the repository identity and event type before refreshing. Deliveries are bounded to 256 KiB and refreshes to one per ten seconds. Webhook routes use the signature rather than application bearer credentials. Replays within the cooldown cannot force upstream work. No admin HTTP invalidation API exists.
-
-
----
-title: Getting started
-description: Practical guidance for getting started.
----
-
-Upserve is a Neplex Technologies project that distributes existing application updates through a composable Hono application. It caches metadata; it does not build releases, sign applications or mirror binaries.
-
-Use Node.js 22.13 or newer (Node 24 recommended), or Bun for the embedded core. Install the integrations you need:
+In a new project directory, create a `package.json` if you don't have one:
 
 ```sh
-pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+npm init -y
 ```
 
-```ts
+Then install the packages with your preferred package manager.
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+The core handles release selection and caching. The GitHub package reads releases, the generic adapter exposes JSON endpoints, and the Hono Node adapter starts the HTTP listener.
+
+</Step>
+<Step>
+
+### Create your server
+
+Save this as `server.ts`. The generic API lets you verify the server before connecting a framework-specific updater.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
 import { createUpserve } from "@neplex/upserve";
 import { github } from "@neplex/upserve-github";
 import { generic } from "@neplex/upserve-generic";
 
-export const updates = createUpserve({
+const updates = createUpserve({
   apps: {
     editor: {
-      provider: github({ repository: "example/editor" }),
+      provider: github({ repository: "owner/editor" }),
       adapters: [generic()],
     },
   },
 });
+
+serve({ fetch: updates.fetch, port: 3000 });
 ```
 
-Check `/editor/stable/generic/latest`. A missing release returns 204. Replace the example repository with your own. See the runnable workspace playground and `examples/` for local demonstrations.
+</Step>
+<Step>
 
+### Start it
 
----
-title: Tauri, Electron and Android
-description: Practical guidance for tauri, electron and android.
----
+```sh
+npx tsx server.ts
+```
 
-## Tauri v2
+This command uses `tsx` to run TypeScript. The library example doesn't print a startup banner. Leave it running and open another terminal.
 
-Use `tauri()` from `@neplex/upserve-tauri`. Publish Tauri's `latest.json` and its referenced binaries in the same release. Set the updater endpoint to `/APP/stable/tauri/{{target}}/{{arch}}/{{current_version}}`. `/APP/stable/tauri/latest.json` provides static manifest compatibility. `manifest` overrides the source filename. Signatures are retained byte for byte. Invalid versions, missing signatures or missing referenced binaries fail closed; no applicable platform/update returns 204. Custom Tauri targets can use the static endpoint.
+</Step>
+<Step>
 
-## electron-builder / electron-updater
+### Make an update request
 
-Use `electron()` from `@neplex/upserve-electron` with generic feed URL `/APP/stable/electron/`. Stable maps to `latest`; use `channels: { prerelease: 'beta' }` in adapter options for beta feeds. Supported manifests include `latest.yml`, `latest-mac.yml`, `latest-linux.yml` and Linux architecture suffixes. Publish the original YAML, NSIS installer or macOS ZIP/DMG or Linux artifacts, and blockmaps. The YAML must have version, files, SHA-512 base64 checksums and sizes matching release assets. Paths must be relative basenames in the same release. YAML is returned unchanged.
+First, check the configured channels. This request doesn't contact GitHub:
 
-Web installers (`packages`), absolute external file URLs and signed feed envelopes are rejected. Electron's native Squirrel autoUpdater is a different protocol and is unsupported. Differential generation is outside scope. Existing `.blockmap` assets and Range requests are passed upstream. Configure electron-updater's generic provider `useMultipleRangeRequest: false` for GitHub delivery, which supports single ranges; do not assume multipart range support. Keep old release artifacts available for old blockmap lookups. Downloads are verified by the client using the original checksums.
-
-## Direct Android APKs
-
-Use `android()` from `@neplex/upserve-android`. Publish `latest-android.json` (override `manifest` if needed). Endpoints are `/APP/stable/android/latest.json` and `/APP/stable/android/update/CURRENT`.
+```sh
+curl http://localhost:3000/editor/stable/generic/channels
+```
 
 ```json
+{ "channels": ["stable", "prerelease"] }
+```
+
+Now request your latest stable release:
+
+```sh
+curl -i http://localhost:3000/editor/stable/generic/latest
+```
+
+For a published `v1.2.0` release, the JSON includes `"version": "1.2.0"` and the release assets. If there are no matching published releases, you'll receive `204 No Content`. A `503` usually means GitHub couldn't be reached or the repository isn't accessible. See [error responses](/docs/errors).
+
+</Step>
+<Step>
+
+### Connect your updater
+
+Use the [Tauri](/docs/tauri), [Electron](/docs/electron) or [Android](/docs/android) guide to add that adapter and configure your client. For your own client, request `/editor/stable/generic/update/1.0.0` and follow the [generic API guide](/docs/generic).
+
+Use HTTPS when you deploy. See [standalone and Docker deployment](/docs/deployment) if you'd rather run a service than maintain this small server file.
+
+</Step>
+</Steps>
+
+## Run from a repository checkout
+
+Before the packages are published, clone the Upserve repository using an account with access. From its root, run:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm exec tsx apps/playground/index.ts
+```
+
+The playground uses local fixtures, so you can check `/demo/stable/generic/latest` without GitHub credentials. For your own repository, edit `examples/upserve.config.ts` and start the workspace CLI:
+
+```sh
+UPSERVE_CONFIG=examples/upserve.config.ts pnpm exec tsx packages/cli/src/index.ts start
+```
+
+See [CLI configuration](/docs/deployment#configuration-file) for environment variables and startup output.
+
+
+---
+title: How Upserve works
+description: Follow an update check from your application to a cached release and download.
+---
+
+An update check has two parts: deciding which release to offer and downloading its installer. Upserve caches the information needed for the first part. It redirects or streams the download for the second.
+
+## Follow an update check
+
+1. Your app requests an endpoint such as `/editor/stable/tauri/darwin/aarch64/1.0.0`.
+2. Upserve checks your access rule, if you've configured one.
+3. It looks for cached release metadata. If it needs fresh data, it asks the release provider.
+4. The adapter checks the selected release's manifest and answers in your updater's format.
+5. Your updater downloads the asset using the returned URL and verifies it before installation.
+
+If several clients check at once, Upserve fetches the same metadata once and shares the result between them. See [caching](/docs/cache) for expiry, outages and rate limits.
+
+## The pieces you configure
+
+| Piece       | What it does                                                 | Built-in choices                       |
+| ----------- | ------------------------------------------------------------ | -------------------------------------- |
+| Application | Groups one app's releases, access rules and update protocols | Your entries in `apps`                 |
+| Provider    | Reads releases and opens known assets                        | GitHub Releases                        |
+| Adapter     | Implements the HTTP protocol your updater expects            | Tauri, Electron, Android, generic JSON |
+| Cache store | Saves release and manifest metadata                          | Memory, optional SQLite                |
+
+An application can expose several adapters. For example, your desktop and Android builds can share a repository and application ID while using different manifests.
+
+## Versions, tags and IDs
+
+For a GitHub release tagged `v1.2.0`, the **version** is `1.2.0`, the **tag** is `v1.2.0`, and the **ID** is GitHub's release identifier. They serve different purposes. Upserve compares semantic versions to select updates; it doesn't compare GitHub IDs or publication dates.
+
+The default `stable` channel excludes releases marked as prereleases. The default `prerelease` channel includes only those releases. [Channels](/docs/channels) explains how to change that selection.
+
+## What stays in your release pipeline
+
+Keep building installers, generating checksums and signing updates in your existing pipeline. Upload the original manifest and every artifact it references to the same release. Upserve doesn't need signing private keys and doesn't generate signatures.
+
+Adapters validate the selected release before offering it. If its manifest is incomplete, Upserve returns an error rather than silently trying an older release. Correct the release assets, then refresh or wait for cache expiry.
+
+
+---
+title: Choose an integration
+description: Find the guide for your existing updater without changing its release protocol.
+---
+
+Choose the guide that matches the updater already installed in your application. Each guide walks through the packages, release assets, server setup and client configuration.
+
+| Your application                            | Guide                                | What you publish                                 |
+| ------------------------------------------- | ------------------------------------ | ------------------------------------------------ |
+| Tauri v2 desktop app                        | [Tauri](/docs/tauri)                 | `latest.json`, signed updater artifacts          |
+| electron-builder app using electron-updater | [Electron](/docs/electron)           | Platform YAML, installers and existing blockmaps |
+| Android app distributed outside Google Play | [Android](/docs/android)             | `latest-android.json` and an APK                 |
+| CLI, desktop app or another custom client   | [Custom applications](/docs/generic) | Release assets; no adapter manifest required     |
+
+Electron's native `autoUpdater` uses other protocols and isn't supported by the Electron adapter. Android doesn't have a universal sideloaded update protocol, so you'll implement the client check and installation flow yourself.
+
+Need a different protocol? You can [write an adapter](/docs/custom-adapters) without changing Upserve. You don't need to understand the extension contracts to use a built-in integration.
+
+
+---
+title: Tauri
+description: Connect a Tauri v2 updater to Upserve while keeping your existing signatures.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+Upserve serves the Tauri v2 updater protocol. Keep your current updater plugin and signing setup; change its endpoint to your Upserve server.
+
+This guide assumes you already build signed Tauri updates. If not, follow the [Tauri updater setup](https://v2.tauri.app/plugin/updater/) first. Upserve never needs your signing private key.
+
+<Steps>
+<Step>
+
+### Prepare your release
+
+Publish a GitHub release such as `v1.2.0` in `owner/editor`. Upload:
+
+- `latest.json`, using Tauri's static manifest format.
+- Every updater binary referenced in its `platforms` object.
+- The signatures produced by your existing build, included in that manifest.
+
+For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must exactly match the asset's GitHub download URL. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
+
+A static manifest has this shape. Replace the repository, artifact name and signature with the values produced by your release pipeline; `SIGNATURE_FROM_CI` isn't a usable signature.
+
+```json title="latest.json"
+{
+  "version": "1.2.0",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://github.com/owner/editor/releases/download/v1.2.0/editor.app.tar.gz",
+      "signature": "SIGNATURE_FROM_CI"
+    }
+  }
+}
+```
+
+Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Notes and publication date come from the release metadata.
+
+</Step>
+<Step>
+
+### Install and configure Upserve
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+Replace `owner/editor` with your repository.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { tauri } from "@neplex/upserve-tauri";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [tauri()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+If your manifest has another filename, use `tauri({ manifest: "updater.json" })`.
+
+</Step>
+<Step>
+
+### Set the updater endpoint
+
+In your existing `src-tauri/tauri.conf.json`, set the endpoint while keeping your real public key:
+
+```json title="src-tauri/tauri.conf.json (updater section)"
+{
+  "plugins": {
+    "updater": {
+      "pubkey": "YOUR_EXISTING_TAURI_PUBLIC_KEY",
+      "endpoints": [
+        "https://updates.example.com/editor/stable/tauri/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
+  }
+}
+```
+
+Replace `updates.example.com` with your deployed host. Keep your existing plugin registration and permissions. No new update-check implementation is required. Use HTTPS; Tauri's development HTTP opt-in is only for local testing.
+
+</Step>
+<Step>
+
+### Start and test
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/tauri/darwin/aarch64/1.0.0
+```
+
+With a valid `1.2.0` release for that platform, you'll receive `200` with `version`, `signature`, `url` and any available `notes` and `pub_date`. The signature is the one you published. A current version of `1.2.0`, or a missing `darwin-aarch64` platform, returns `204 No Content`.
+
+</Step>
+</Steps>
+
+## Static manifest clients
+
+`/editor/stable/tauri/latest.json` returns a static manifest with a `platforms` object. Use this endpoint for clients that need static manifest selection, including custom target keys. The dynamic endpoint constructs the key as `target-arch` and doesn't interpret custom target naming conventions.
+
+## If your update isn't detected
+
+Compare the target and architecture in your request with the exact key in `latest.json`, such as `windows-x86_64` or `linux-x86_64`. Confirm the requested version is older and the release belongs to the chosen [channel](/docs/channels).
+
+A missing manifest returns `404`. Invalid JSON, an empty signature, a version mismatch or a referenced binary outside the selected release returns `422` when there's no usable cached manifest. See [troubleshooting](/docs/troubleshooting) for cache and refresh checks.
+
+
+---
+title: Electron
+description: Serve electron-updater generic feeds, original YAML and differential download assets.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+This adapter supports **electron-builder applications using electron-updater's generic provider**. Electron's native `autoUpdater` uses protocols such as Squirrel and isn't interchangeable with electron-updater. Squirrel and Sparkle aren't supported by this adapter.
+
+<Steps>
+<Step>
+
+### Keep your electron-builder artifacts
+
+For each published release in `owner/editor`, upload electron-builder's original YAML and the files it references. Depending on your targets, those include:
+
+| Platform | Feed filename                                 | Typical artifacts                       |
+| -------- | --------------------------------------------- | --------------------------------------- |
+| Windows  | `latest.yml`                                  | NSIS installer and `.blockmap`          |
+| macOS    | `latest-mac.yml`                              | ZIP, DMG and generated blockmaps        |
+| Linux    | `latest-linux.yml` or `latest-linux-ARCH.yml` | Target artifacts and generated metadata |
+
+Use a tag such as `v1.2.0`. The YAML `version` must equal `1.2.0`. Each entry in `files` needs a SHA-512 base64 checksum and a positive file size matching the GitHub asset. File URLs must be relative basenames in the same release.
+
+Upserve returns the YAML unchanged. It doesn't regenerate checksums, re-sign metadata or create differential patches. Preserve your existing platform signing and electron-updater verification.
+
+</Step>
+<Step>
+
+### Install and configure the server
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { electron } from "@neplex/upserve-electron";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [electron()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+Replace `owner/editor` with your repository.
+
+</Step>
+<Step>
+
+### Configure electron-updater
+
+Install `electron-updater` in your Electron application if it isn't already installed. In electron-builder's configuration, set a generic feed:
+
+```yaml title="electron-builder.yml (publish section)"
+publish:
+  provider: generic
+  url: https://updates.example.com/editor/stable/electron/
+  useMultipleRangeRequest: false
+```
+
+Replace the example host. Keep the trailing slash. Continue calling `autoUpdater.checkForUpdatesAndNotify()` from **electron-updater** in your main process. This is a focused client snippet for an already configured Electron application:
+
+```ts
+import { autoUpdater } from "electron-updater";
+
+autoUpdater.checkForUpdatesAndNotify();
+```
+
+If you configure the feed at runtime instead, pass the same `provider`, `url` and `useMultipleRangeRequest` to `autoUpdater.setFeedURL()`.
+
+</Step>
+<Step>
+
+### Start and test the feed
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/electron/latest.yml
+```
+
+Use `latest-mac.yml` or your Linux filename to test those targets. Expect `200` and the original YAML. Test the packaged app too; successful YAML retrieval alone doesn't prove signing, installation or differential download behavior on each operating system.
+
+</Step>
+</Steps>
+
+## Differential downloads
+
+Electron-updater can download only the parts of an installer that changed when you publish its existing blockmap data. Upserve makes the installer and blockmaps available and forwards the client's download requests. It doesn't generate those files.
+
+GitHub delivery supports single byte ranges. Set `useMultipleRangeRequest: false` so the client doesn't request multipart ranges. Keep the old release's blockmaps in the repository because a client upgrading from that release may request them. A reverse proxy must forward `Range` and preserve `206 Partial Content` responses. See [asset delivery](/docs/assets).
+
+## Prerelease feeds
+
+For a `beta` YAML prefix on the default `prerelease` channel, configure `electron({ channels: { prerelease: "beta" } })` and point your prerelease clients at `/editor/prerelease/electron/`. The `channels` option maps URL channel names to YAML filename prefixes; it doesn't select releases. [Release channels](/docs/channels) controls selection.
+
+## Supported configurations and limits
+
+NSIS installers, macOS ZIP/DMG feeds and Linux feeds with relative asset filenames are the intended configurations. Architecture-specific Linux YAML suffixes are accepted; every artifact referenced by a feed still needs to be in that release.
+
+Web installers using a YAML `packages` field, absolute external file URLs and alternate signed feed envelopes aren't supported. A missing feed returns `404`; malformed YAML, missing artifacts or mismatched checksums/sizes return `422` without a usable cached manifest. Upserve validates checksum format, not the binary's digest. Electron-updater must verify the actual download.
+
+For client details, see the [electron-builder auto-update guide](https://www.electron.build/docs/features/auto-update/) and [generic provider implementation](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/GenericProvider.ts).
+
+
+---
+title: Android
+description: Publish APK update metadata and connect your own Android update client.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+Android has no universal updater protocol for apps distributed outside Google Play. Upserve supplies a JSON manifest and an APK download URL. Your app decides when to check, verifies the download and uses Android's supported installation flow with the user's consent.
+
+You don't give Upserve your APK signing keys. Keep signing APKs in your existing release pipeline.
+
+<Steps>
+<Step>
+
+### Publish the APK and its manifest
+
+Upload your signed `editor.apk` and `latest-android.json` to the same GitHub release, such as `v1.2.0` in `owner/editor`.
+
+```json title="latest-android.json"
 {
   "version": "1.2.0",
   "versionCode": 12,
-  "notes": "Release notes",
+  "notes": "Fixes startup on Android 15.",
   "pub_date": "2026-01-01T00:00:00Z",
   "android": {
-    "url": "https://github.com/owner/repo/releases/download/v1.2.0/app.apk",
+    "url": "https://github.com/owner/editor/releases/download/v1.2.0/editor.apk",
     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "size": 12345
   }
 }
 ```
 
-The checksum shown is illustrative; generate the actual digest in release CI. `versionCode`, `minimumVersion` and `compatibility` are optional. A `transform(input)` hook maps existing formats. `compatible(manifest, request)` can enforce ABI, SDK or minimum-version policies; default behavior compares semantic versions only. Clients must verify size, SHA-256, package name and signing certificate before prompting installation. Upserve never requests signing keys.
+The checksum and size above are placeholders. Generate the real values from the **final signed APK** in your release pipeline:
 
-OPPA's current generator and Rust consumer were inspected locally: their manifest uses version, notes, pub_date and android URL/SHA-256/size and works with this default format. No OPPA behavior is embedded in the server.
+```sh
+sha256sum editor.apk
+wc -c < editor.apk
+```
 
-Protocol references: [Tauri updater](https://v2.tauri.app/plugin/updater/), [electron-updater generic provider source](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/GenericProvider.ts).
+On macOS, use `shasum -a 256 editor.apk`. The manifest URL must exactly match the APK's GitHub download URL. Its version must match the release version, and its size must match the GitHub asset metadata.
+
+</Step>
+<Step>
+
+### Install and start the server
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { android } from "@neplex/upserve-android";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [android()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+Replace `owner/editor` with your repository, then run:
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/android/update/1.0.0
+```
+
+A newer release returns the manifest with its APK URL pointing through Upserve's asset route. A current client returns `204 No Content`. `/editor/stable/android/latest.json` returns the latest manifest without a current-version comparison.
+
+</Step>
+<Step>
+
+### Add the client update check
+
+Have your Android client request the update URL with its current semantic version. Handle `204` as no update. For `200`, show the release notes and ask the user before downloading or installing.
+
+Before installation, verify the downloaded file's length, SHA-256, application package name and signing certificate. Upserve checks the metadata's shape and asset size; it doesn't download and hash the APK on your behalf. Follow Android's [PackageInstaller API](https://developer.android.com/reference/android/content/pm/PackageInstaller) and the platform's permission requirements.
+
+</Step>
+</Steps>
+
+## Manifest fields
+
+| Field            | Type                      | Required | Meaning                                         |
+| ---------------- | ------------------------- | -------- | ----------------------------------------------- |
+| `version`        | `string`                  | Yes      | Semantic version matching the release           |
+| `android.url`    | `string`                  | Yes      | Exact APK download URL in the same release      |
+| `android.sha256` | `string`                  | Yes      | 64 hexadecimal characters                       |
+| `android.size`   | `number`                  | Yes      | Positive integer length in bytes                |
+| `versionCode`    | `number`                  | No       | Positive Android version code                   |
+| `notes`          | `string` or `null`        | No       | Release notes for your UI                       |
+| `pub_date`       | `string`                  | No       | Publication timestamp supplied by your pipeline |
+| `minimumVersion` | `string`                  | No       | Semantic version floor for your own policy      |
+| `compatibility`  | `Record<string, unknown>` | No       | Your SDK, ABI or device metadata                |
+
+## Compatibility policies
+
+By default, Upserve compares semantic versions only. `versionCode`, `minimumVersion` and `compatibility` don't enforce an upgrade policy automatically. Your client or the `compatible` hook must interpret them.
+
+This complete adapter definition suppresses offers for clients below a declared minimum. Add it to your application's `adapters` array instead of `android()`:
+
+```ts title="android-adapter.ts"
+import { newer, validVersion } from "@neplex/upserve";
+import { android } from "@neplex/upserve-android";
+
+export const androidAdapter = android({
+  compatible(manifest, request) {
+    if (!manifest.minimumVersion) return true;
+
+    const current = request.headers.get("X-App-Version");
+
+    return Boolean(current && validVersion(current) && !newer(manifest.minimumVersion, current));
+  },
+});
+```
+
+The client must send `X-App-Version` in this example. A `false` result returns `204` on either Android endpoint.
+
+Use `android({ manifest: "updates.json" })` for a different filename. Use `transform(input)` to translate an existing format into `AndroidManifest` before validation. Treat its input as untrusted and validate fields; the hook doesn't bypass Upserve's asset checks.
+
+## Common problems
+
+If you receive `422`, compare the manifest version with the tag after removing `tagPrefix`, verify the SHA-256 format and confirm the APK size. The asset name must end in `.apk`. If the response is `204`, inspect the current version, channel and compatibility hook. See [troubleshooting](/docs/troubleshooting).
 
 
 ---
-title: Security and private releases
-description: Practical guidance for security and private releases.
+title: Custom applications
+description: Use JSON endpoints to check versions, discover assets and build your own update client.
 ---
 
-Upserve plugins and configuration execute as trusted application code. They are not sandboxed. Providers must validate URLs, redirect targets and untrusted upstream metadata before exposing it.
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-Upstream repository authentication does not authorize clients. A token implies private mode unless explicitly overridden. Private mode requires an `authorize(request)` callback; denial returns 401 before any upstream work. A standalone configuration can compare a bearer header against an environment secret. Use constant-time verification or an existing authentication middleware for production. Do not put secrets in URLs, manifests or logs. Rotate provider cacheScope and deployment namespace on permission changes.
+Use `generic()` when your application doesn't need a framework-specific updater protocol. It exposes release metadata as JSON. You choose the platform asset and implement download verification and installation in your client.
 
-GitHub's fixed API origin and exact asset-host allowlist avoid arbitrary upstream proxying and DNS rebinding to attacker-controlled names. Custom private-network providers must explicitly implement and document their destination policy; the official provider does not support GitHub Enterprise or private network URLs.
+## Run a generic update server
 
-Metadata bodies, release/page counts, response lifetimes and refresh concurrency are bounded. Assets are only selected by registered IDs or exact names. No filesystem asset paths are built from client input. Request IDs, authorization bodies and upstream error bodies are not logged. Authenticated webhooks have bounded bodies and cooldowns.
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
 
-Never store application signing keys. Use HTTPS externally; set a trusted canonical host at your reverse proxy because generated asset URLs use the request origin. Rate limit unauthenticated traffic at the edge, especially binary downloads. Follow SECURITY.md for disclosure; no security mailbox or configured advisory infrastructure is claimed.
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+Replace `owner/editor` with your release repository.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/generic/update/1.0.0
+```
+
+## Read the response
+
+A newer release returns JSON shaped like this. IDs, filenames and lengths here are illustrative; your release supplies the actual values.
+
+```json
+{
+  "id": "123",
+  "tag": "v1.2.0",
+  "version": "1.2.0",
+  "prerelease": false,
+  "notes": "Fixes startup on older systems.",
+  "publishedAt": "2026-01-01T00:00:00Z",
+  "assets": [
+    {
+      "name": "editor-linux.tar.gz",
+      "size": 12345,
+      "url": "http://localhost:3000/editor/stable/assets/123/456"
+    }
+  ]
+}
+```
+
+`notes` and `publishedAt` may be omitted. Provider-specific `metadata`, raw asset IDs and upstream asset URLs aren't included in the generic response. Asset URLs retain a parent Hono mount path if you [embed the server](/docs/embedding).
+
+## Endpoints
+
+All paths below start with `/editor/stable/generic`.
+
+| Method and path          | Result                                                  |
+| ------------------------ | ------------------------------------------------------- |
+| `GET /latest`            | Latest release, or `204` if none exists                 |
+| `GET /update/:current`   | Latest release if newer than `current`, otherwise `204` |
+| `GET /versions/:version` | Exact version, or `404`                                 |
+| `GET /releases`          | `{ "releases": [...] }` in descending version order     |
+| `GET /channels`          | `{ "channels": ["stable", "prerelease"] }` by default   |
+
+The current version must be a semantic version such as `1.0.0`. An invalid current version returns `422` when there's a release to compare. The exact-version endpoint compares version strings, so don't include a Git tag prefix.
+
+## A Python client
+
+This Python 3 example checks for an update without installing anything. It uses only the standard library.
+
+```python title="check_update.py"
+import json
+import urllib.error
+import urllib.request
+
+url = "http://localhost:3000/editor/stable/generic/update/1.0.0"
+
+try:
+    with urllib.request.urlopen(url, timeout=10) as response:
+        if response.status == 204:
+            print("You're up to date.")
+        else:
+            release = json.load(response)
+            print(f"Version {release['version']} is available.")
+
+            for asset in release["assets"]:
+                print(f"{asset['name']}: {asset['url']}")
+except urllib.error.HTTPError as error:
+    print(f"Update check failed: HTTP {error.code}")
+except urllib.error.URLError as error:
+    print(f"Update server is unavailable: {error.reason}")
+```
+
+```sh
+python3 check_update.py
+```
+
+Choose an asset using a documented naming convention. The generic API doesn't infer operating systems or supply a universal checksum field. Publish a checksum/signature manifest or use a [custom adapter](/docs/custom-adapters) if your client needs one. Verify the downloaded software before executing it.
+
+For private releases, send your application's authorization header on both metadata and asset requests. Don't put credentials in the download URL.
+
+
+---
+title: Applications
+description: Register applications, choose update adapters and set per-application behavior.
+---
+
+Use `createUpserve()` to configure an embedded server. Use `defineConfig()` in `upserve.config.ts` for the standalone CLI. The configuration shape is the same, and `defineConfig()` gives you autocomplete and type checking.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { tauri } from "@neplex/upserve-tauri";
+import { android } from "@neplex/upserve-android";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [tauri(), android()],
+    },
+  },
+});
+```
+
+This application exposes Tauri and Android endpoints below `/editor/stable` and `/editor/prerelease`. Register another entry in `apps` to serve a second application with its own provider and policies.
+
+For this configuration, install `@neplex/upserve`, `@neplex/upserve-github`, `@neplex/upserve-tauri` and `@neplex/upserve-android`, plus `@neplex/upserve-cli` if you're using the CLI. The [quick start](/docs/quick-start) shows how to serve an embedded configuration.
+
+## Common application options
+
+| Option      | Type                                                | Required              | Default                    | Use it to                                        |
+| ----------- | --------------------------------------------------- | --------------------- | -------------------------- | ------------------------------------------------ |
+| `provider`  | `Provider`                                          | Yes                   | None                       | Choose where releases come from                  |
+| `adapters`  | `Adapter[]`                                         | Yes                   | None                       | Expose the update protocols you need             |
+| `channels`  | `Record<string, (release: Release) => boolean>`     | No                    | `stable` and `prerelease`  | Select releases for each channel                 |
+| `authorize` | `(request: Request) => boolean \| Promise<boolean>` | For private providers | No access check            | Decide who can read metadata and download assets |
+| `cache`     | `CachePolicy`                                       | No                    | See [caching](/docs/cache) | Change metadata lifetimes for this application   |
+| `delivery`  | `"redirect" \| "stream"`                            | No                    | Redirect when supported    | Send public downloads through your server        |
+
+App and channel names become URL segments. Start them with a letter or number, then use letters, numbers, `.`, `_` or `-`, up to 128 characters. Adapter names must be unique within an application.
+
+## Keep the first configuration small
+
+For a public repository, start with `provider` and `adapters`. You don't need custom cache keys, a persistent store or authorization to try Upserve.
+
+Add [authentication](/docs/security) for private releases, [custom channels](/docs/channels) when you publish beta builds, or [SQLite](/docs/cache#persist-metadata-with-sqlite) when you want cached metadata to survive a restart.
+
+## Advanced server options
+
+The top-level `cache` chooses a store for the server; `apps.editor.cache` controls lifetimes. These are different options. `namespace`, `concurrency`, `background` and `now` are also top-level options. See the [configuration reference](/docs/configuration-reference) for their defaults and examples.
+
+Configuration files and plugins execute as trusted code. Only load configuration you control.
+
+
+---
+title: Release channels
+description: Select stable, prerelease and custom release streams using semantic versions.
+---
+
+Channels decide which releases an endpoint can see. They don't create releases or change the files you've published.
+
+With the default configuration:
+
+| Channel      | Included releases                                |
+| ------------ | ------------------------------------------------ |
+| `stable`     | Releases whose provider sets `prerelease: false` |
+| `prerelease` | Releases whose provider sets `prerelease: true`  |
+
+For GitHub, this flag comes from the release's **Set as a pre-release** setting. It is separate from whether the tag contains a suffix such as `-beta.1`. Keep the tag and GitHub setting consistent so a beta doesn't enter your stable channel.
+
+## Define your own channels
+
+The `channels` object replaces both defaults. Include `stable` yourself if you still want it.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+      channels: {
+        stable: (release) => !release.prerelease,
+        beta: (release) => release.prerelease && release.version.includes("-beta."),
+      },
+    },
+  },
+});
+```
+
+Request `/editor/beta/generic/latest` to check that selection. Channel predicates can inspect the normalized release, including provider-specific `metadata`, but should stay synchronous and avoid network work.
+
+## Which release wins?
+
+Upserve removes drafts and yanked releases, sorts the remaining releases by semantic version, then applies your channel predicate. `1.10.0` sorts above `1.9.0`, and `1.0.0-beta.10` sorts above `1.0.0-beta.2`. Publication order doesn't decide the winner. Build metadata such as `+build.5` doesn't increase version precedence.
+
+The selected release must contain the manifest and artifacts for the adapter you're using. An invalid newest release produces an error; it doesn't automatically fall back to an older one.
+
+## Tags aren't versions
+
+The GitHub provider removes `v` by default: `v1.2.0` becomes `1.2.0`. Use `tagPrefix: "editor-v"` for `editor-v1.2.0`, or `tagPrefix: ""` for bare `1.2.0` tags. Tags that don't match the prefix and a valid semantic version are ignored.
+
+Changing a channel predicate while reusing a cache is safe for selection because predicates run after metadata is loaded. Changing repository credentials needs a new [cache scope](/docs/security#cache-isolation), not just a different channel name.
+
+
+---
+title: GitHub Releases
+description: Connect a public or private repository and understand tag matching and upstream requests.
+---
+
+Use the GitHub provider to read published releases and their assets. Start with a public repository and add authentication only if you need it.
+
+Install `@neplex/upserve-github` alongside `@neplex/upserve` and your adapter packages. The [quick start](/docs/quick-start) includes a complete running server.
+
+```ts title="provider.ts"
+import { github } from "@neplex/upserve-github";
+
+export const provider = github({
+  repository: "owner/editor",
+  tagPrefix: "v",
+});
+```
+
+`repository` is an `owner/repository` pair, not a URL. Replace `owner/editor`. With the default prefix `v`, a tag `v1.2.0` produces version `1.2.0`. Use `tagPrefix: "editor-v"` for `editor-v1.2.0`, or an empty string for bare versions.
+
+## Prepare your releases
+
+Publish a release with a valid semantic version tag. Upload your adapter's original manifest and every artifact it references to that release. GitHub's source archives aren't a replacement for your application's updater artifacts.
+
+Upserve scans the release list instead of relying on GitHub's latest-release endpoint. It can therefore select stable and prerelease channels independently and order by semantic version. Drafts aren't offered. See [channels](/docs/channels) for prerelease selection.
+
+## Authenticate with GitHub
+
+Pass a token from your environment as `token`. For private repositories, use a read-only credential with access to repository contents. See GitHub's [release API permissions](https://docs.github.com/en/rest/releases/releases#list-releases) for the token type you're using.
+
+A token enables private mode by default, which requires downstream authorization. Read [private releases](/docs/security) before adding one. Set `private: false` only when you're deliberately authenticating API requests for a **public** repository.
+
+The official provider uses `api.github.com` and GitHub's release asset hosts. It doesn't accept a custom API origin or support GitHub Enterprise. Implement a [custom provider](/docs/custom-providers) for another host.
+
+## Requests and rate limits
+
+Upserve reuses cached GitHub pages rather than requesting them for every client check. When a page needs refreshing, its saved ETag and Last-Modified values become conditional request headers. A `304 Not Modified` reuses the previous page body.
+
+The provider fetches 100 releases per page, up to 20 pages by default. If all configured pages are full, it reports a pagination-limit error instead of silently omitting history. Increase `maxPages` if needed; the maximum is 100. This bounds release lookup and old blockmap searches.
+
+Network and server errors get two retries by default, using exponential backoff with jitter. Rate-limit responses establish a cooldown instead of repeated retries. GitHub's `Retry-After` and reset time influence when requests resume. A secondary-limit message without those headers pauses requests for one minute. Other `403` responses are treated as access failures. See [caching and rate limits](/docs/cache) for what your clients receive.
+
+## Options you may need
+
+| Option          | Type      | Required | Default                                  | Change it when                                                              |
+| --------------- | --------- | -------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| `repository`    | `string`  | Yes      | None                                     | Selecting the GitHub repository                                             |
+| `tagPrefix`     | `string`  | No       | `"v"`                                    | Your tags use a different prefix                                            |
+| `token`         | `string`  | No       | None                                     | Reading a private repository or authenticating public API requests          |
+| `private`       | `boolean` | No       | `Boolean(token)`                         | Explicitly distinguishing public authenticated access from private releases |
+| `webhookSecret` | `string`  | No       | None                                     | Enabling [release webhooks](/docs/webhooks)                                 |
+| `timeout`       | `number`  | No       | `30_000` ms                              | Downloads need more than 30 seconds                                         |
+| `maxPages`      | `number`  | No       | `20`                                     | Release history exceeds the page limit                                      |
+| `retries`       | `number`  | No       | `2`                                      | Tuning network/5xx retries, from `0` to `5`                                 |
+| `cacheScope`    | `string`  | No       | Random for tokens; `anonymous` otherwise | Reusing persistent data across restarts with a stable credential generation |
+
+For test injection options `fetch`, `sleep` and `random`, see the [API reference](/docs/api#githuboptions).
+
+
+---
+title: Authentication and security
+description: Protect private release metadata and downloads without exposing GitHub credentials.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="warn">
+
+Giving Upserve a GitHub token lets it access your repository. It doesn't give your application users permission to download private releases. You configure that access separately.
+
+</Callout>
+
+## Protect a private application
+
+A GitHub token implies `private: true` unless you override it. Private providers require an `authorize(request)` callback; Upserve refuses to create the application without one. Requests denied by that callback return `401` before any release lookup or download.
+
+This standalone example uses Hono's constant-time comparison utility for a server-managed bearer credential. Install `hono` along with the CLI, core, GitHub and generic packages. Supply both environment values before starting the service.
+
+```ts title="upserve.config.ts"
+import { timingSafeEqual } from "hono/utils/buffer";
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const githubToken = process.env.GITHUB_TOKEN;
+const clientToken = process.env.UPDATE_CLIENT_TOKEN;
+
+if (!githubToken || !clientToken) {
+  throw new Error("GITHUB_TOKEN and UPDATE_CLIENT_TOKEN are required");
+}
+
+export default defineConfig({
+  namespace: "editor-private-v1",
+  apps: {
+    editor: {
+      provider: github({
+        repository: "owner/editor",
+        token: githubToken,
+        cacheScope: "read-credential-generation-1",
+      }),
+      adapters: [generic()],
+      authorize: (request) =>
+        timingSafeEqual(request.headers.get("Authorization") ?? "", `Bearer ${clientToken}`),
+    },
+  },
+});
+```
+
+Use your existing authentication or entitlement verification for production applications. A shared token embedded in a distributed app can be extracted; it isn't an individual user identity. The callback can be asynchronous so you can verify your own credentials without adding an authentication system to Upserve.
+
+Send the downstream credential on **both** metadata and asset requests:
+
+```sh
+curl -H "Authorization: Bearer $UPDATE_CLIENT_TOKEN" \
+  http://localhost:3000/editor/stable/generic/latest
+```
+
+Do not send your GitHub token to application clients. Private assets always stream through Upserve; responses use `Cache-Control: private, no-store` when application authorization is configured.
+
+## Authenticated public repositories
+
+If your repository is public and you only need authenticated API access, explicitly set `private: false` in `github()`. This permits public metadata and redirects. Never use that setting to bypass private-repository access checks.
+
+## Cache isolation
+
+`namespace` separates deployments in a shared cache. The provider's `scope` separates repository/configuration and credential generations. GitHub includes its repository and tag prefix, and uses a random scope for authenticated providers unless you set `cacheScope`.
+
+For persistent reuse, set a nonsecret `cacheScope` that identifies a credential generation. Change it when you rotate credentials or change their permissions. Change the deployment namespace when you change the broader security boundary. Never use a token as either value.
+
+Authentication failures discovered during refresh clear the affected cache entry. Fresh cached data isn't a live check of GitHub permissions, and background refresh can return stale data before a revocation is detected. Keep downstream authorization active and use finite cache lifetimes. See [caching](/docs/cache#authentication-failures-are-different).
+
+## Downloads and network boundaries
+
+Only registered release assets can be downloaded. The official GitHub provider validates repository download URLs and follows API redirects only to its allowed GitHub asset hosts. Credentials go to `api.github.com`, not redirect destinations or client-visible URLs.
+
+Custom providers must implement their own URL and redirect policy. Support for a deliberate private-network source belongs in that provider's explicit configuration. It mustn't become an arbitrary URL proxy. See [custom providers](/docs/custom-providers).
+
+## Deploy safely
+
+- Use HTTPS and configure your reverse proxy to accept only your canonical host. Generated asset URLs use the request origin.
+- Forward authorization headers and disable CDN caching for protected routes.
+- Rate limit public traffic at the edge, especially downloads. Metadata refresh coordination isn't a general client rate limiter.
+- Keep signing private keys in your release pipeline. Upserve doesn't need them.
+- Load only trusted plugins and TypeScript configurations. They run as application code and aren't sandboxed.
+
+For vulnerability reports, follow the repository's [security policy](https://github.com/neplextech/upserve/blob/main/SECURITY.md). Don't include credentials or private download links in public reports.
+
+
+---
+title: Caching and rate limits
+description: Understand what clients receive when metadata expires, GitHub fails or a release changes.
+---
+
+Suppose several hundred installed copies of Editor check for updates at startup. If each one asks GitHub directly, they all consume API requests for the same release information. With Upserve, those clients share cached metadata.
+
+The first check loads the release list. Checks during the fresh period reuse it. If many clients arrive together when it expires, Upserve performs one refresh for that data and shares the result. This is called **request coalescing**: a burst of checks doesn't become a burst of identical GitHub requests.
+
+## What gets cached
+
+Upserve caches normalized release lists, provider resources such as GitHub API pages, and validated adapter manifests. It doesn't store installers, APKs or blockmaps. Those files redirect to the upstream or stream through your server.
+
+The default store holds up to 1,000 metadata entries in memory. Restarting the process clears it. Use [SQLite](#persist-metadata-with-sqlite) if you need cached metadata after a restart.
+
+## Default timing
+
+All cache options are in **milliseconds** and apply per application.
+
+| Option         | Default                  | Meaning                                                             |
+| -------------- | ------------------------ | ------------------------------------------------------------------- |
+| `ttl`          | `60_000` (one minute)    | How long successful metadata stays fresh                            |
+| `negativeTtl`  | `15_000` (15 seconds)    | How long a confirmed empty release list stays fresh                 |
+| `staleIfError` | `300_000` (five minutes) | How long previously validated data can be used after freshness ends |
+
+For a release list loaded at 12:00:00 with these defaults:
+
+| Time                                   | What a check does                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| Before 12:01:00                        | Uses the fresh cached list                                               |
+| At or after 12:01:00                   | Tries to refresh before answering, unless you enabled background refresh |
+| During an outage, before 12:06:00      | Can answer with the old list if refresh fails                            |
+| During an outage, at or after 12:06:00 | Returns an error because the old list has expired completely             |
+
+This is **stale-if-error**: old but validated metadata can bridge a short outage. It isn't an unlimited fallback. Each resource has its own timestamps, so manifest and list expiry can differ.
+
+## When GitHub is unavailable
+
+If GitHub fails and Upserve has usable cached metadata, the client can still get an update response until the stale window ends. A malformed refresh doesn't replace the previous validated data.
+
+If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds.
+
+A successful **empty** release list means no releases exist. It replaces the previous list and uses the shorter `negativeTtl`. This is **negative caching**: Upserve remembers that nothing was found without treating an outage as an empty repository.
+
+## When GitHub rate limits requests
+
+The GitHub provider reads `Retry-After` and rate-limit reset headers and pauses further upstream work until the deadline. It also recognizes secondary throttling responses. During that pause, clients can use metadata still inside its stale window. Otherwise they receive `503` with an error code and, when available, a `Retry-After` header.
+
+Don't invalidate the cache in a client retry loop. That won't override a provider cooldown and removes data that might have kept your update checks working. Let clients retry later and use [webhooks](/docs/webhooks) for release changes.
+
+## Authentication failures are different
+
+When a refresh reports an upstream authentication error, Upserve clears the affected cached entry instead of serving it as an outage fallback. The request reports an error, and later checks respect the cooldown.
+
+This isn't an immediate credential-revocation check on every client request. Fresh data can be served until refresh discovers the problem. With background refresh enabled, the request that starts the refresh can receive stale data before that failure is known. Enforce user access in `authorize()` on every request and rotate cache scopes when permissions change.
+
+## Change the lifetimes
+
+For an app that rarely publishes and can tolerate a longer update delay:
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+      cache: {
+        ttl: 5 * 60 * 1000,
+        negativeTtl: 15 * 1000,
+        staleIfError: 10 * 60 * 1000,
+      },
+    },
+  },
+});
+```
+
+This keeps metadata fresh for five minutes and allows ten additional minutes during errors. Shorten `ttl` when update latency matters; keep a finite stale window that fits your release withdrawal policy. A longer TTL also means a deleted or withdrawn release can remain visible longer.
+
+## Make new releases available
+
+There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event.
+
+Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh, while respecting cooldowns. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
+
+`await updates.invalidate("editor")` removes the resolved release-list entry. The next check reloads it, but invalidation doesn't remove every provider resource or manifest. Use these methods only from trusted server code; Upserve has no public force-refresh query parameter or admin endpoint.
+
+A successful refresh removes deleted and yanked releases from selection. An invalid newest manifest causes an error rather than falling back to an older release. Prefer immutable release artifacts and publish a new version to correct a bad update.
+
+## Refresh in the background
+
+If your host can keep work alive after responding, supply `background(task)`. Upserve can then return usable stale data immediately and refresh it in the background. This is **stale-while-revalidate**.
+
+Without this option, checks wait for the refresh and need no long-lived timer or background runtime support. Don't pass a fire-and-forget callback on a host that can terminate work after the response. See [runtime guidance](/docs/embedding#other-fetch-based-runtimes).
+
+## Persist metadata with SQLite
+
+Install `@neplex/upserve-sqlite` alongside your server packages. It uses Node's built-in SQLite module and isn't a Workers cache.
+
+```ts title="persistent-config.ts"
+import { mkdir } from "node:fs/promises";
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+import { sqliteCache } from "@neplex/upserve-sqlite";
+
+await mkdir("./data", { recursive: true });
+
+export const cache = sqliteCache("./data/metadata.sqlite");
+
+export default defineConfig({
+  namespace: "editor-production-v1",
+  cache,
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+Close the store with `cache.close()` after requests drain. The CLI can manage this for you when you set `UPSERVE_CACHE_DIR`; see [deployment](/docs/deployment).
+
+SQLite uses WAL mode and persists metadata and timestamps. It doesn't automatically prune old rows or cache binaries. Monitor disk use, especially if you change namespaces or publish many releases.
+
+## Advanced coordination and isolation
+
+Each Upserve instance coordinates its own refreshes. A shared store doesn't add distributed locks, a global GitHub rate-limit budget or a shared concurrency limit. Multiple processes can refresh the same data simultaneously. Use one instance per credential scope if you need that coordination guarantee.
+
+The default concurrency is four per coordination pool, with separate pools for resolved data and provider resources. It isn't a four-request limit for all downloads. See [configuration options](/docs/configuration-reference).
+
+Cache keys separate deployments, applications, providers and provider scopes. Channels filter the app's shared release list. GitHub page validators are saved with the page: a later conditional request can use ETag or Last-Modified and reuse a `304` response. See [private cache isolation](/docs/security#cache-isolation) before sharing persistent storage.
+
+Client metadata responses also have ETags. Public metadata requires revalidation; protected responses use `private, no-store`. HTTP caching at your CDN is a separate policy from Upserve's server-side metadata cache.
+
+
+---
+title: Asset delivery
+description: Choose redirects or streaming and configure large or differential downloads.
+---
+
+Upserve separates metadata caching from binary delivery. A cached update response doesn't mean the installer is stored on your server.
+
+## Redirect public downloads
+
+Public GitHub assets redirect by default. Upserve validates the known asset URL and returns `302` to the GitHub release download path. The client follows GitHub's own download redirects. This keeps installer traffic off your server.
+
+Only registered assets can be requested. Clients can't provide an arbitrary URL for Upserve to proxy.
+
+## Stream through Upserve
+
+Set `delivery: "stream"` on an application when downloads should pass through your server. Private providers always stream, regardless of that setting.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({
+        repository: "owner/editor",
+        timeout: 5 * 60 * 1000,
+      }),
+      adapters: [generic()],
+      delivery: "stream",
+    },
+  },
+});
+```
+
+This gives each upstream request up to five minutes. The GitHub default is 30 seconds, including streamed response consumption in standard Fetch implementations. Increase it for large installers and slow links, and check your proxy's timeout too.
+
+Streaming uses Web Streams and doesn't load the whole installer into memory. The upstream receives the client's cancellation signal. Stream backpressure allows the downstream's read speed to control consumption.
+
+## Resume and differential downloads
+
+GitHub asset streaming supports `GET` and `HEAD`. It forwards `Range`, `If-Range`, `If-None-Match` and `If-Modified-Since`, and preserves upstream `200`, `206`, `304` and `416` statuses. It retains download headers including length, media type, disposition, content range, ETag and Last-Modified.
+
+Use an actual asset URL returned by a manifest or generic response:
+
+```sh
+curl -I "$ASSET_URL"
+curl -D - -H 'Range: bytes=0-1023' "$ASSET_URL" -o first-kib.bin
+```
+
+For a valid range, expect `206 Partial Content` and a matching `Content-Range`. Add your downstream authorization header for private releases.
+
+Electron-updater uses these requests with blockmaps to reduce download size. Configure single-range requests for GitHub and keep old blockmaps available; see [Electron](/docs/electron#differential-downloads). Upserve doesn't generate differential data or guarantee multipart ranges.
+
+## Reverse proxies and CDNs
+
+Forward `Range`, conditional and authorization headers. Preserve partial-response statuses and headers, and disable response buffering for large streamed downloads.
+
+Public streamed assets use a one-hour HTTP cache lifetime. Protected streams use `private, no-store`. Don't let a CDN override private cache controls. Treat public artifact URLs as immutable, especially when enabling an external CDN.
+
+A CDN or binary mirror can be added independently, but Upserve has no built-in persistent binary storage. Never rewrite checksums or signature contents just to change a download location.
+
+
+---
+title: Release webhooks
+description: Refresh a GitHub application after authenticated release events.
+---
+
+A webhook makes newly published releases available without waiting for the next expired-cache request. GitHub sends a signed event, and Upserve verifies it before refreshing the application's release list.
+
+## Configure the secret
+
+Generate a long random secret and store it in both your server environment and GitHub's webhook configuration. Don't commit it.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
+
+if (!webhookSecret) throw new Error("GITHUB_WEBHOOK_SECRET is required");
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor", webhookSecret }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+This example assumes a public repository. Add repository credentials and downstream authorization separately if needed.
+
+## Add the GitHub webhook
+
+In your repository's **Settings → Webhooks**, create a webhook with:
+
+| Setting      | Value                                         |
+| ------------ | --------------------------------------------- |
+| Payload URL  | `https://updates.example.com/webhooks/editor` |
+| Content type | `application/json`                            |
+| Secret       | The value of `GITHUB_WEBHOOK_SECRET`          |
+| Events       | Release events                                |
+
+Replace the host and application ID. If Upserve is mounted at `/updates`, use `/updates/webhooks/editor` instead.
+
+Upserve verifies the HMAC-SHA256 signature, the `release` event type and `repository.full_name`. It accepts release events regardless of their action and refreshes from GitHub rather than trusting the event's release data.
+
+## Test a delivery
+
+Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. A successful refresh responds:
+
+```json
+{ "refreshed": true }
+```
+
+A missing or incorrect signature, wrong repository or unsupported event type returns `401`. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken.
+
+Bodies are limited to 256 KiB. Valid deliveries are limited to one refresh per application every ten seconds in each process; faster deliveries return `429`. If the refresh fails, the response uses the normal [error format](/docs/errors).
+
+## What a webhook refreshes
+
+The event forces release-list and provider-page revalidation while respecting upstream cooldowns. It doesn't purge every cached adapter manifest. Publish immutable artifacts in new releases instead of replacing a manifest in place.
+
+Webhook access uses its signature, not your application's `authorize()` callback. Don't add an open refresh route for clients. For trusted scheduled work in an embedded server, use `updates.refresh("editor")` directly.
+
+
+---
+title: Standalone CLI and Docker
+description: Run Upserve as a service with typed configuration, health checks and persistent metadata.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+Use the CLI if you want a standalone service. You don't need to write an HTTP listener. For an existing server, see [embedding in Hono, Node.js and Bun](/docs/embedding).
+
+## Install the CLI
+
+Use Node.js 24 for the service and SQLite cache. Install the packages your configuration imports too:
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+</Tabs>
+
+```sh
+npx upserve init
+```
+
+This creates `upserve.config.ts` and refuses to overwrite an existing file. The executable is `upserve`; you can also run `pnpm exec upserve`, `yarn upserve` or `bunx upserve` after installation.
+
+## Configuration file
+
+Edit the generated file. Use `editor` consistently as the application ID and replace `owner/editor` with your repository.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+```sh
+npx upserve start
+```
+
+The service prints structured JSON, including a line like:
+
+```json
+{ "time": "2026-01-01T00:00:00.000Z", "event": "listening", "port": 3000 }
+```
+
+Check it from another terminal:
+
+```sh
+curl http://localhost:3000/health/ready
+curl -i http://localhost:3000/editor/stable/generic/latest
+```
+
+Readiness returns `{"status":"ready"}`. The second request tests your release source; health endpoints don't contact GitHub.
+
+## Environment variables
+
+| Variable            | Default             | Purpose                                                 |
+| ------------------- | ------------------- | ------------------------------------------------------- |
+| `UPSERVE_CONFIG`    | `upserve.config.ts` | Path to your trusted TypeScript configuration           |
+| `HOST`              | `0.0.0.0`           | Listener address; use `127.0.0.1` for local-only access |
+| `PORT`              | `3000`              | Listener port, integer from 1 to 65535                  |
+| `UPSERVE_CACHE_DIR` | Unset               | Directory for `metadata.sqlite`; created if needed      |
+
+Set `UPSERVE_CACHE_DIR=./data` to enable persistent metadata unless your configuration already supplies a cache. The CLI opens and closes that SQLite store for you. It doesn't delete old entries automatically.
+
+Secrets such as `GITHUB_TOKEN` are read by **your configuration**, not automatically applied by the CLI. Upserve doesn't load `.env` files for you. Pass values through your shell, process manager or container environment. See [authentication](/docs/security) before adding a GitHub token.
+
+On `SIGINT` or `SIGTERM`, the service marks readiness as draining, stops accepting connections and allows up to ten seconds for requests to finish. Downloads that exceed the drain deadline can be interrupted. Liveness at `/health/live` returns `{"status":"ok"}`.
+
+## Docker Compose
+
+During initial development, build the image from the repository. No published image is assumed:
+
+```sh
+docker build -t upserve .
+```
+
+The repository's Compose file builds this image, mounts `examples/upserve.config.ts` and stores metadata in a named volume. Edit that configuration first, then run:
+
+```sh
+docker compose up --build -d
+docker compose logs -f upserve
+curl http://localhost:3000/health/ready
+```
+
+The image runs Node.js as UID/GID `10001`, listens on port `3000`, reads `/config/upserve.config.ts` and stores SQLite data under `/data`. Bind-mounted data directories must be writable by that user. Custom configuration imports must be installed in the image; mounting a config file doesn't install extra dependencies.
+
+## Coolify
+
+Select a Dockerfile deployment from this repository, expose port `3000`, mount persistent storage at `/data`, and mount your configuration at `/config/upserve.config.ts`. Configure environment secrets in Coolify. Use `/health/ready` for the health check and your platform's HTTPS proxy for the public domain.
+
+You don't need PostgreSQL or Redis. One process is the simplest deployment when you want all update checks to share refresh coordination.
+
+## Reverse proxy configuration
+
+Terminate HTTPS at your proxy and accept only the intended host. Upserve builds asset URLs from the incoming origin, so verify generated URLs use the public HTTPS host in your environment. Forward authorization, range and conditional headers, preserve `206` responses, and disable buffering for streamed downloads. Never cache private routes at the CDN.
+
+Upserve doesn't start a polling timer. Checks refresh expired metadata as needed; [GitHub webhooks](/docs/webhooks) can refresh release lists after publication. Don't expose the programmatic refresh methods as unauthenticated HTTP routes.
+
+
+---
+title: Hono, Node.js and Bun
+description: Mount Upserve in an existing Hono app or run its Fetch handler in your runtime.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+`createUpserve()` returns a Hono application. You can use its Fetch handler directly or mount it in another Hono app. The library doesn't start a server, open a database or create timers on its own.
+
+## Hono on Node.js
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add hono @hono/node-server @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+const app = new Hono();
+
+app.get("/", (context) => context.text("Editor service"));
+app.route("/updates", updates);
+
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+```sh
+npx tsx server.ts
+curl http://localhost:3000/updates/editor/stable/generic/channels
+```
+
+Returned asset URLs retain `/updates`. For a dedicated Node.js listener, pass `updates.fetch` to `serve()` directly, as in the [quick start](/docs/quick-start). See [Hono's Node adapter guide](https://hono.dev/docs/getting-started/nodejs) for server options.
+
+## Bun
+
+Install the core, GitHub and generic packages; Bun supplies the HTTP server, so you don't need `@hono/node-server`.
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+```ts title="server.bun.ts"
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+Bun.serve({ port: 3000, fetch: updates.fetch });
+```
+
+```sh
+bun run server.bun.ts
+curl http://localhost:3000/editor/stable/generic/channels
+```
+
+## Other Fetch-based runtimes
+
+The core uses Fetch, Web Crypto, AbortSignal and Web Streams rather than Node APIs. A Fetch host can call `updates.fetch(request)`. The repository includes a Worker integration example, but it hasn't been deployed and validated on Cloudflare. Treat it as a starting point to test in your own environment, not a claim of verified production compatibility.
+
+Without `background`, expired-cache requests await refresh and don't depend on work continuing after the response. Hosts with a `waitUntil()` facility can pass a callback as `background: (task) => context.waitUntil(task)` when creating Upserve in the appropriate request scope. Don't capture an expired request context in a long-lived instance. Constructing a new instance per request also loses process-local coalescing between requests; choose your lifecycle deliberately.
+
+SQLite and the standalone CLI are Node-specific. Use memory or a [custom cache store](/docs/custom-cache-stores) in other runtimes.
+
+## What is validated
+
+The repository's runtime smoke script exercises built package entry points on Node.js and Bun. Protocol tests use the Hono Fetch handler directly. This doesn't prove installation behavior on every desktop OS, a Workers deployment or every serverless host.
+
+When embedding, you own listener shutdown, logs and health routes. The CLI's `/health/*` endpoints aren't added to the core application. See [standalone deployment](/docs/deployment) if you want those lifecycle features included.
+
+
+---
+title: Extend Upserve
+description: Choose the extension point for a new release source, update protocol or metadata store.
+---
+
+You can add a release source, update protocol or cache store without changing Upserve. Official integrations use the same public contracts available to your code.
+
+| You want to change                          | Implement    | Start here                                       |
+| ------------------------------------------- | ------------ | ------------------------------------------------ |
+| Where release metadata and assets come from | `Provider`   | [Custom providers](/docs/custom-providers)       |
+| What routes and responses your updater uses | `Adapter`    | [Custom adapters](/docs/custom-adapters)         |
+| Where cached metadata is saved              | `CacheStore` | [Custom cache stores](/docs/custom-cache-stores) |
+
+Start with the smallest contract that fits your task. For example, a new JSON response format usually needs an adapter, not a new provider. Your adapter can reuse GitHub and the existing cache.
+
+The `defineProvider()`, `defineAdapter()` and `defineCache()` helpers check the contract while preserving your object's inferred properties. They don't wrap or sandbox your code. Plugins run with the application's permissions, so only install integrations you trust.
+
+Each guide below includes a complete implementation and a deterministic test. The [API reference](/docs/api#extension-contracts) documents the full method signatures and shared services.
+
+
+---
+title: Custom providers
+description: Implement and test a release source using the public Provider contract.
+---
+
+Write a provider when your releases live somewhere other than GitHub, or when you want to supply a catalog you already maintain. A provider returns normalized releases and opens their known assets. It doesn't define HTTP update routes.
+
+Upserve handles channel selection, release validation, metadata lifetimes and request coalescing. Your provider handles access to the source, source-specific validation, credentials and safe asset delivery.
+
+## 1. Return a small catalog
+
+Install `@neplex/upserve` and `@neplex/upserve-generic`. This complete provider serves a fixed metadata-only release. It deliberately publishes no assets, so it needs no network access and is easy to test.
+
+```ts title="catalog-provider.ts"
+import { defineProvider, UpserveError } from "@neplex/upserve";
+import type { Release } from "@neplex/upserve";
+
+export function catalogProvider() {
+  const releases: Release[] = [
+    {
+      id: "release-12",
+      tag: "v1.2.0",
+      version: "1.2.0",
+      prerelease: false,
+      notes: "Fixes startup on older systems.",
+      assets: [],
+    },
+  ];
+
+  return defineProvider({
+    name: "catalog",
+    scope: "editor-catalog-v1",
+
+    async releases() {
+      return structuredClone(releases);
+    },
+
+    async open() {
+      throw new UpserveError("missing", "This catalog has no downloadable assets");
+    },
+  });
+}
+```
+
+`id` is a stable source identifier, `tag` is the original reference, and `version` is a semantic version used for comparison. Don't put a tag such as `editor-v1.2.0` into `version`.
+
+## 2. Register and test it
+
+Install `vitest` as a development dependency. Save this next to `catalog-provider.ts` and run `npx vitest run catalog-provider.test.ts`:
+
+```ts title="catalog-provider.test.ts"
+import { expect, it } from "vitest";
+import { createUpserve } from "@neplex/upserve";
+import { generic } from "@neplex/upserve-generic";
+import { catalogProvider } from "./catalog-provider.js";
+
+it("serves the catalog through the generic adapter", async () => {
+  const updates = createUpserve({
+    apps: {
+      editor: { provider: catalogProvider(), adapters: [generic()] },
+    },
+  });
+
+  const response = await updates.request("/editor/stable/generic/latest");
+  const release = await response.json();
+
+  expect(response.status).toBe(200);
+  expect(release.version).toBe("1.2.0");
+  expect(release.assets).toEqual([]);
+});
+```
+
+The same configuration can be passed to the CLI or a [runtime listener](/docs/embedding). Replace `generic()` with any adapter once your source publishes that adapter's required manifests and artifacts.
+
+## 3. Load from a real source
+
+Replace the fixed array with your source request. Accept `context` in `releases(context)` and use `context.cached("catalog-page", loader)` for reusable source resources. The loader receives its previous cached value, which can include an ETag or Last-Modified validator.
+
+Validate the source response **inside the loader before returning it**. On a conditional `304`, return the previous validated value. For JSON, use `readText(response, maxBytes)` to bound the body before parsing. A source that pages results must enforce its own page limit.
+
+Return `[]` only when the source confirms there are no releases. Throw `UpserveError("network", "Source unavailable")` for temporary failures, `"invalid"` for malformed metadata, `"auth"` for rejected credentials or `"rate_limit"` with an absolute `retryAt` timestamp for throttling. Never include tokens or raw source error bodies in messages.
+
+## 4. Add asset delivery
+
+For each real asset, return its stable `id`, unique `name`, byte `size` and safe `url`. Implement `open(asset, request, context)` to fetch only that known asset. Preserve the request's range/conditional headers, use `context.signal` for cancellation and return a streaming response. Document which HTTP features your source supports.
+
+If you implement `redirect(asset)`, validate the public destination before returning it. Validate every redirect in `open()` too, and don't forward credentials to another host. Without `redirect()`, Upserve uses `open()` even for public assets.
+
+For private data, set `private: true`; registration will then require `authorize()` and downloads will stream through the server. Change the nonsecret `scope` whenever the source configuration or credential permissions change.
+
+## Common mistakes
+
+- Returning `[]` during an outage withdraws every release. Throw instead.
+- Using client input as an upstream URL turns the server into a proxy. Resolve assets from your trusted catalog.
+- Caching malformed source responses inside `context.cached()` can preserve bad data. Validate before returning.
+- Treating `scope` as a token risks storing secrets in keys. Use a credential generation name.
+
+The [Provider and ResourceContext reference](/docs/api#provider) covers the optional webhook hook and exact signatures. Add tests for malformed data, denied access, ranges, redirects and cancellation before using a network-backed provider for executable downloads.
+
+
+---
+title: Custom adapters
+description: Add and test a small update protocol while reusing release resolution and caching.
+---
+
+An adapter defines the routes and responses your updater expects. Use one when the generic API doesn't fit your client. It can work with GitHub or any custom provider without knowing where the releases came from.
+
+Upserve supplies application-scoped release lookup, manifest loading and asset delivery. Your adapter validates its protocol and decides what response represents an applicable update.
+
+## 1. Define a route
+
+Install `@neplex/upserve`. This adapter returns a small version response at `/editor/stable/custom/version`:
+
+```ts title="version-adapter.ts"
+import { defineAdapter } from "@neplex/upserve";
+
+export function versionAdapter() {
+  return defineAdapter({
+    name: "custom-version",
+
+    register(router, services) {
+      router.get("/custom/version", async (context) => {
+        const channel = context.req.param("channel")!;
+        const release = await services.latest(channel);
+
+        if (!release) return context.body(null, 204);
+
+        return context.json({ version: release.version, notes: release.notes });
+      });
+    },
+  });
+}
+```
+
+Routes are relative to `/:application/:channel`. The outer router supplies `channel`, checks application access and adds metadata caching headers and ETags. Choose a path prefix that doesn't collide with another adapter.
+
+## 2. Register it
+
+Put `versionAdapter()` in your application's `adapters` array. It can sit beside `tauri()` or `generic()` if their paths don't overlap. The adapter name must also be unique within that application.
+
+## 3. Test the public endpoint
+
+Use `catalog-provider.ts` from the [provider guide](/docs/custom-providers). Install `vitest` as a development dependency, save all three files together and run `npx vitest run version-adapter.test.ts`:
+
+```ts title="version-adapter.test.ts"
+import { expect, it } from "vitest";
+import { createUpserve } from "@neplex/upserve";
+import { catalogProvider } from "./catalog-provider.js";
+import { versionAdapter } from "./version-adapter.js";
+
+it("answers in the custom protocol", async () => {
+  const updates = createUpserve({
+    apps: {
+      editor: { provider: catalogProvider(), adapters: [versionAdapter()] },
+    },
+  });
+
+  const response = await updates.request("/editor/stable/custom/version");
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    version: "1.2.0",
+    notes: "Fixes startup on older systems.",
+  });
+});
+```
+
+No live source or HTTP listener is needed for this test.
+
+## 4. Add manifests and downloads
+
+Use `services.releases(channel)` when you need the full ordered history. Use `services.manifest(release, "update.json", parse)` to read a **known asset** and validate it before it is cached. The parser receives text, must throw on invalid protocol data, and runs again on cache hits.
+
+Check the manifest version, required platforms, signatures and referenced assets before returning an offer. A valid release list alone doesn't mean a protocol manifest is complete. Don't alter cryptographic signatures or checksums.
+
+For a download URL in JSON, call `services.assetUrl(context, release, asset)`. For a download route of your own, return `services.deliver(context.req.raw, release, asset)`. That service applies configured redirects or streaming, including private delivery. Use `GET` and `HEAD` routes if your protocol needs both.
+
+## Common mistakes
+
+Don't call GitHub directly from each route. Use the supplied services so your protocol shares caching and refresh coordination. Don't add a client-controlled force-refresh option or expose another application's configuration.
+
+Return `204` when your protocol has no applicable update. Throw an `UpserveError` for invalid data rather than presenting an incomplete release. Add tests for unsupported platforms, current versions, missing assets, authentication and mounted paths before shipping.
+
+See [AdapterServices](/docs/api#adapterservices) for method signatures and [error responses](/docs/errors) for the default error mapping.
+
+
+---
+title: Custom cache stores
+description: Implement metadata storage without reimplementing cache timing or refresh coordination.
+---
+
+A cache store saves entries. Upserve decides when they're fresh, when to refresh and whether stale data can still be used. You don't need to implement those policies in your store.
+
+Use the built-in memory or SQLite store unless you have another storage requirement. A shared store can make metadata available to several processes, but it doesn't coordinate their upstream requests.
+
+## 1. Implement the three methods
+
+Install `@neplex/upserve`. This complete example adds a write counter to a small in-memory store so you can see how the contract works. It isn't bounded; use `memoryCache()` for normal deployments.
+
+```ts title="counted-cache.ts"
+import { defineCache } from "@neplex/upserve";
+import type { CacheEntry } from "@neplex/upserve";
+
+export function countedCache() {
+  const entries = new Map<string, CacheEntry>();
+
+  let writes = 0;
+
+  return defineCache({
+    async get(key: string) {
+      const entry = entries.get(key);
+
+      return entry === undefined ? undefined : structuredClone(entry);
+    },
+
+    async set(key: string, entry: CacheEntry) {
+      entries.set(key, structuredClone(entry));
+      writes++;
+    },
+
+    async delete(key: string) {
+      entries.delete(key);
+    },
+
+    stats() {
+      return { writes };
+    },
+  });
+}
+```
+
+`defineCache()` preserves `stats()` on the returned object, but Upserve only calls `get`, `set` and `delete`.
+
+## 2. Register it
+
+Pass `cache: countedCache()` at the top level of `createUpserve()` or `defineConfig()`. Keep per-application lifetimes in `apps.editor.cache`. See [applications](/docs/configuration) for that distinction.
+
+## 3. Test storage behavior
+
+Install `vitest` as a development dependency, save this next to the implementation and run `npx vitest run counted-cache.test.ts`:
+
+```ts title="counted-cache.test.ts"
+import { expect, it } from "vitest";
+import { countedCache } from "./counted-cache.js";
+
+it("isolates values and preserves absolute timestamps", async () => {
+  const cache = countedCache();
+  const entry = {
+    value: { version: "1.2.0" },
+    freshUntil: 60_000,
+    staleUntil: 360_000,
+    retryAt: 30_000,
+  };
+
+  await cache.set("editor", entry);
+  entry.freshUntil = 0;
+
+  expect(await cache.get("editor")).toEqual({
+    value: { version: "1.2.0" },
+    freshUntil: 60_000,
+    staleUntil: 360_000,
+    retryAt: 30_000,
+  });
+
+  await cache.delete("editor");
+
+  expect(await cache.get("editor")).toBeUndefined();
+  expect(cache.stats()).toEqual({ writes: 1 });
+});
+```
+
+For a persistent implementation, add a test that closes and reopens the store before reading the entry.
+
+## 4. Adapt it to persistent storage
+
+Use the full key unchanged, make each write atomic and return independent values so callers can't mutate stored data. Preserve `freshUntil`, `staleUntil` and `retryAt` as **absolute epoch milliseconds**, not durations.
+
+Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps too. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
+
+Persistent caches can contain private release metadata. Restrict access, choose namespaces deliberately and plan retention for obsolete keys. Your store's lifecycle and cleanup methods are yours to manage; `CacheStore` has no close or prune hook.
+
+## Common mistakes
+
+A shared database isn't a distributed lock. Multiple Upserve processes can refresh simultaneously even when they read the same entries. Don't advertise global concurrency or rate-limit guarantees unless you implement and validate an additional coordination system yourself.
+
+Keep installer bytes out of metadata entries. Reject or surface storage failures rather than silently pretending that a write succeeded. See the [cache contract](/docs/api#cachestore-and-cacheentry) and [cache behavior](/docs/cache) for the full semantics.
+
+
+---
+title: Public API
+description: Find exported functions, integration options and extension contract semantics.
+---
+
+All core imports below come from `@neplex/upserve`. Providers, adapters and SQLite are separate packages so you only install what you use. Runtime configuration fields are listed in the [configuration reference](/docs/configuration-reference).
+
+## createUpserve
+
+`createUpserve(config: UpserveConfig): Upserve`
+
+Creates a real Hono application with `.fetch`, `.request`, `.route` and the normal Hono methods. It doesn't start a listener. Use the [quick start](/docs/quick-start) for a complete Node.js example or [embedding](/docs/embedding) to mount it.
+
+`Upserve` adds two trusted server-side methods:
+
+| Method                                           | What it does                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation, respecting failure cooldowns |
+| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry        |
+
+Both reject unknown application IDs with `UpserveError("missing", ...)`. Neither is an HTTP administration endpoint. Refresh doesn't clear all adapter manifests; see [cache refresh behavior](/docs/cache#make-new-releases-available).
+
+## defineConfig, defineProvider, defineAdapter and defineCache
+
+Each helper accepts an object satisfying its public contract and returns the same object with its inferred type. Use them for autocomplete and to catch missing methods without implementing a base class.
+
+| Helper                     | Contract        | Example                                    |
+| -------------------------- | --------------- | ------------------------------------------ |
+| `defineConfig(config)`     | `UpserveConfig` | [Configuration](/docs/configuration)       |
+| `defineProvider(provider)` | `Provider`      | [Catalog provider](/docs/custom-providers) |
+| `defineAdapter(adapter)`   | `Adapter`       | [Version adapter](/docs/custom-adapters)   |
+| `defineCache(cache)`       | `CacheStore`    | [Counted cache](/docs/custom-cache-stores) |
+
+They don't perform extra runtime wrapping or sandbox plugin code.
+
+## memoryCache
+
+`memoryCache(maxEntries = 1000): CacheStore`
+
+Creates a process-local least-recently-used store. `maxEntries` must be a positive integer. Reads and writes clone values so callers can't mutate stored entries. The limit counts metadata entries, not bytes. Restarting the process loses the data.
+
+## sqliteCache
+
+Import `sqliteCache` from `@neplex/upserve-sqlite`.
+
+`sqliteCache(filename: string): CacheStore & { close(): void }`
+
+Opens a Node SQLite metadata database in WAL mode. Create its parent directory first and close it after HTTP work drains. Entries survive restarts; old rows aren't automatically pruned. See the [persistent cache example](/docs/cache#persist-metadata-with-sqlite).
+
+## Version helpers
+
+| Function                                             | Result                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `validVersion(version: string): boolean`             | Tests a semantic version without coercing an arbitrary tag                                                           |
+| `newer(candidate: string, current: string): boolean` | Returns whether the candidate has greater semantic-version precedence; throws `invalid` if either version is invalid |
+| `compareVersions(a: string, b: string): number`      | Descending sort comparator for semantic versions; pass valid versions                                                |
+
+```ts title="versions.ts"
+import { compareVersions, newer, validVersion } from "@neplex/upserve";
+
+validVersion("1.2.0"); // true
+newer("1.2.0", "1.1.0"); // true
+
+const versions = ["1.9.0", "1.10.0"].sort(compareVersions);
+
+console.log(versions); // ["1.10.0", "1.9.0"]
+```
+
+Build metadata doesn't change precedence. Tags and provider IDs shouldn't be passed as versions.
+
+## readText
+
+`readText(response: Response, maxBytes = 1024 * 1024): Promise<string>`
+
+Reads UTF-8 metadata up to a byte limit, cancels on overflow and releases its stream reader. It returns an empty string when there's no body. Use it before parsing untrusted metadata; don't use it for installers.
+
+## UpserveError
+
+`new UpserveError(code, message, retryAt?)`
+
+| Property  | Type                                                                                 | Meaning                                                                      |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `code`    | `"configuration"`, `"auth"`, `"rate_limit"`, `"network"`, `"invalid"` or `"missing"` | Failure category                                                             |
+| `message` | `string`                                                                             | Safe operational explanation; don't include credentials or raw source bodies |
+| `retryAt` | `number` (optional)                                                                  | Earliest refresh time as absolute epoch milliseconds                         |
+
+An `auth` error clears the affected cached entry. Other failures can preserve previously validated data within its stale window. See [HTTP errors](/docs/errors) for the client mapping.
+
+## Integration factories
+
+### GitHubOptions
+
+`github(options: GitHubOptions): Provider` from `@neplex/upserve-github`.
+
+The [GitHub guide](/docs/github#options-you-may-need) lists all deployment options, requirements and defaults. These additional options support deterministic testing:
+
+| Option   | Type                            | Required | Default           | Purpose                                             |
+| -------- | ------------------------------- | -------- | ----------------- | --------------------------------------------------- |
+| `fetch`  | `typeof fetch`                  | No       | Global `fetch`    | Supply recorded API responses without real requests |
+| `sleep`  | `(ms: number) => Promise<void>` | No       | Timer-based delay | Control retry backoff                               |
+| `random` | `() => number`                  | No       | `Math.random`     | Supply jitter from zero to one                      |
+
+### TauriOptions
+
+`tauri(options?: TauriOptions): Adapter` from `@neplex/upserve-tauri`.
+
+| Option     | Type     | Required | Default         | Meaning                                     |
+| ---------- | -------- | -------- | --------------- | ------------------------------------------- |
+| `manifest` | `string` | No       | `"latest.json"` | Manifest asset name in the selected release |
+
+See [Tauri](/docs/tauri) for endpoint and manifest requirements.
+
+### ElectronOptions
+
+`electron(options?: ElectronOptions): Adapter` from `@neplex/upserve-electron`.
+
+| Option     | Type                     | Required | Default                                          | Meaning                                     |
+| ---------- | ------------------------ | -------- | ------------------------------------------------ | ------------------------------------------- |
+| `channels` | `Record<string, string>` | No       | `stable` maps to `latest`; others use their name | Maps URL channels to YAML filename prefixes |
+
+For example, `electron({ channels: { prerelease: "beta" } })` serves `beta.yml` on the `prerelease` channel. This doesn't replace application channel predicates. See [Electron](/docs/electron).
+
+### AndroidOptions
+
+`android(options?: AndroidOptions): Adapter` from `@neplex/upserve-android`.
+
+| Option       | Type                                                       | Required | Default                    | Meaning                                         |
+| ------------ | ---------------------------------------------------------- | -------- | -------------------------- | ----------------------------------------------- |
+| `manifest`   | `string`                                                   | No       | `"latest-android.json"`    | Manifest asset name                             |
+| `transform`  | `(input: unknown) => AndroidManifest`                      | No       | Use parsed input           | Translates another format before validation     |
+| `compatible` | `(manifest: AndroidManifest, request: Request) => boolean` | No       | No extra eligibility check | Returning false suppresses the offer with `204` |
+
+`AndroidManifest` is also exported by this package. Its fields and validation rules are in the [Android manifest reference](/docs/android#manifest-fields). `minimumVersion` and `versionCode` aren't automatic selection rules.
+
+### generic
+
+`generic(): Adapter` from `@neplex/upserve-generic` takes no options. Its response format is documented in [custom applications](/docs/generic).
+
+## Extension contracts
+
+The following types are exported from the core. Official integrations implement these same contracts.
+
+### Release and Asset
+
+| Release field     | Type      | Required | Meaning                                                                  |
+| ----------------- | --------- | -------- | ------------------------------------------------------------------------ |
+| `id`              | `string`  | Yes      | Stable provider identity                                                 |
+| `tag`             | `string`  | Yes      | Original upstream reference                                              |
+| `version`         | `string`  | Yes      | Valid semantic version                                                   |
+| `prerelease`      | `boolean` | Yes      | Channel-selection flag                                                   |
+| `assets`          | `Asset[]` | Yes      | Known manifests and downloadable files, up to 1,000                      |
+| `draft`, `yanked` | `boolean` | No       | Exclude the release when true                                            |
+| `notes`           | `string`  | No       | Release notes                                                            |
+| `publishedAt`     | `string`  | No       | RFC 3339 timestamp                                                       |
+| `metadata`        | `unknown` | No       | Serializable source-specific information; omitted from generic responses |
+
+An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+
+The core accepts at most 10,000 releases, filters drafts/yanked entries and sorts by version. Adapter manifests have additional validation requirements.
+
+### Provider
+
+| Member          | Signature                                                                         | Responsibility                                                  |
+| --------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `name`          | `string`                                                                          | Identify the integration                                        |
+| `scope`         | `string`                                                                          | Identify a nonsecret configuration/credential generation        |
+| `private`       | `boolean` (optional)                                                              | Require authorization and streamed downloads when true          |
+| `releases`      | `(context: ResourceContext) => Promise<Release[]>`                                | Return validated source data or throw                           |
+| `open`          | `(asset: Asset, request: Request, context: ResourceContext) => Promise<Response>` | Open only the known asset and preserve supported HTTP semantics |
+| `redirect`      | `(asset: Asset) => string` (optional)                                             | Return a validated public download destination                  |
+| `verifyWebhook` | `(request: Request, body: Uint8Array) => Promise<boolean>` (optional)             | Authenticate a bounded webhook body before refresh              |
+
+A provider with `verifyWebhook` gets `/webhooks/:application`. The official GitHub provider exposes that method even without a secret; verification then rejects every delivery. See the [provider tutorial](/docs/custom-providers) for implementation and testing.
+
+### ResourceContext
+
+| Member   | Signature                                                                             | Meaning                                                               |
+| -------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `signal` | `AbortSignal`                                                                         | Cancellation/deadline for the operation                               |
+| `cached` | `<T>(identity: string, load: (previous: T \| undefined) => Promise<T>) => Promise<T>` | Cache and coalesce a resource inside the application's provider scope |
+
+Validate inside `load` before returning. Provider resources have no stale-on-error fallback of their own; the outer release list can still supply stale data. Release lookup gets a 120-second outer deadline; adapter manifest loading gets 30 seconds. Providers should honor the signal and bound their own requests too.
+
+### Adapter
+
+`Adapter` requires `name: string` and `register(app: Hono, services: AdapterServices): void`. Register relative routes under the application's channel router. Names and route prefixes should avoid collisions. See the [adapter tutorial](/docs/custom-adapters).
+
+### AdapterServices
+
+| Member     | Signature                                                                       | Meaning                                                           |
+| ---------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `config`   | `AppConfig`                                                                     | This application's configuration                                  |
+| `channels` | `string[]`                                                                      | Configured channel names                                          |
+| `releases` | `(channel: string) => Promise<Release[]>`                                       | Filtered releases, newest first                                   |
+| `latest`   | `(channel: string) => Promise<Release \| undefined>`                            | First selected release                                            |
+| `manifest` | `<T>(release: Release, name: string, parse: (text: string) => T) => Promise<T>` | Read a known asset, validate before caching and parse on each use |
+| `assetUrl` | `(context: Context, release: Release, asset: Asset) => string`                  | Build a server delivery URL including a parent mount path         |
+| `deliver`  | `(request: Request, release: Release, asset: Asset) => Promise<Response>`       | Apply redirects or streaming to a known release asset             |
+
+`Context` is Hono's request context. Manifest bodies are limited to 1 MiB through `readText()` by default. A parse failure becomes an `invalid` error and doesn't replace previously validated text. Don't return invalid data from the parser.
+
+### CacheStore and CacheEntry
+
+| CacheStore method                     | Return type                        | Meaning                                 |
+| ------------------------------------- | ---------------------------------- | --------------------------------------- |
+| `get(key: string)`                    | `Promise<CacheEntry \| undefined>` | Return an independent entry or no entry |
+| `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
+| `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
+
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` and optional `retryAt: number`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. Preserve it rather than interpreting it as fresh empty data.
+
+`CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.
+
+
+---
+title: Configuration options
+description: Look up required fields, defaults and advanced server settings.
+---
+
+Use this reference after the [quick start](/docs/quick-start). Configuration uses the same `UpserveConfig` shape for `createUpserve()` and the CLI's `defineConfig()`.
+
+## UpserveConfig
+
+| Option        | Type                               | Required | Default             | Behavior                                                                  |
+| ------------- | ---------------------------------- | -------- | ------------------- | ------------------------------------------------------------------------- |
+| `apps`        | `Record<string, AppConfig>`        | Yes      | None                | Registers applications by URL identifier                                  |
+| `cache`       | `CacheStore`                       | No       | `memoryCache(1000)` | Chooses the metadata store shared by this instance                        |
+| `namespace`   | `string`                           | No       | `"upserve-v1"`      | Separates deployment data in the store                                    |
+| `concurrency` | `number`                           | No       | `4`                 | Limits simultaneous loads per coordination pool; integer `1` through `64` |
+| `now`         | `() => number`                     | No       | `Date.now`          | Supplies epoch milliseconds for cache timing in deterministic tests       |
+| `background`  | `(task: Promise<unknown>) => void` | No       | None; await refresh | Lets the host keep a stale-data refresh alive after responding            |
+
+Use `namespace` when multiple deployments share a persistent store. Change it when you change a deployment's security boundary. It isn't a secret.
+
+There are separate coordination pools for resolved metadata and provider resources. `concurrency` doesn't limit active binary downloads or enforce a distributed budget. `now` controls cache timing; it doesn't replace GitHub's wall clock for rate-limit headers or webhook cooldowns.
+
+Only configure `background` if your runtime guarantees the task can finish. See [runtime guidance](/docs/embedding#other-fetch-based-runtimes).
+
+## AppConfig
+
+| Option      | Type                                                         | Required              | Default                                     | Behavior                                                        |
+| ----------- | ------------------------------------------------------------ | --------------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| `provider`  | `Provider`                                                   | Yes                   | None                                        | Source of release metadata and assets                           |
+| `adapters`  | `Adapter[]`                                                  | Yes                   | None                                        | Protocol routes mounted for this application                    |
+| `authorize` | `(request: Request) => boolean` or `Promise<boolean>` result | For private providers | No access check                             | Denies with `401` when it returns false                         |
+| `channels`  | `Record<string, (release: Release) => boolean>`              | No                    | Stable and prerelease predicates            | Replaces the default channel map                                |
+| `cache`     | `CachePolicy`                                                | No                    | See below                                   | Sets this application's metadata lifetimes                      |
+| `delivery`  | `"redirect"` or `"stream"`                                   | No                    | Redirect if public and provider supports it | Chooses public binary delivery; private providers always stream |
+
+See [applications](/docs/configuration), [channels](/docs/channels) and [authentication](/docs/security) for examples.
+
+## CachePolicy
+
+| Option         | Type     | Required | Default      | Example                                             |
+| -------------- | -------- | -------- | ------------ | --------------------------------------------------- |
+| `ttl`          | `number` | No       | `60_000` ms  | `5 * 60 * 1000` for five minutes fresh              |
+| `negativeTtl`  | `number` | No       | `15_000` ms  | `10 * 1000` for ten seconds with no releases        |
+| `staleIfError` | `number` | No       | `300_000` ms | `10 * 60 * 1000` for ten extra minutes after expiry |
+
+All values must be finite and nonnegative. Zero is allowed. A zero stale window disables serving old metadata after freshness ends. A zero TTL causes every check to need refresh coordination, so don't use it to bypass GitHub limits.
+
+## Provider and adapter options
+
+| Factory                    | Configuration reference                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `github(options)`          | [GitHub options](/docs/github#options-you-may-need) and [test injection](/docs/api#githuboptions) |
+| `tauri(options?)`          | [TauriOptions](/docs/api#taurioptions)                                                            |
+| `electron(options?)`       | [ElectronOptions](/docs/api#electronoptions)                                                      |
+| `android(options?)`        | [AndroidOptions](/docs/api#androidoptions)                                                        |
+| `generic()`                | No options                                                                                        |
+| `memoryCache(maxEntries?)` | [Memory cache](/docs/api#memorycache)                                                             |
+| `sqliteCache(filename)`    | [SQLite cache](/docs/api#sqlitecache)                                                             |
+
+The [CLI environment variables](/docs/deployment#environment-variables) configure the listener and configuration path. They aren't fields in `UpserveConfig`.
+
+
+---
+title: HTTP endpoints
+description: Look up adapter routes, asset downloads, webhooks and CLI health checks.
+---
+
+Replace `APP` with your application ID and `CHANNEL` with a configured channel. If you've mounted Upserve under `/updates`, prefix every path below with `/updates`.
+
+Applications with `authorize()` check it before adapter and asset routes. Webhooks use signature verification separately. For response bodies and statuses, follow the linked integration guide.
+
+## Update protocols
+
+| Adapter                    | Method    | Path                                        | Result                                  |
+| -------------------------- | --------- | ------------------------------------------- | --------------------------------------- |
+| [Tauri](/docs/tauri)       | GET       | `/APP/CHANNEL/tauri/latest.json`            | Static manifest or `204`                |
+| Tauri                      | GET       | `/APP/CHANNEL/tauri/:target/:arch/:current` | Dynamic offer or `204`                  |
+| [Electron](/docs/electron) | GET, HEAD | `/APP/CHANNEL/electron/:file`               | YAML or a matching history asset        |
+| Electron                   | GET, HEAD | `/APP/CHANNEL/electron/:release/:file`      | Asset from an exact provider release ID |
+| [Android](/docs/android)   | GET       | `/APP/CHANNEL/android/latest.json`          | Manifest or `204`                       |
+| Android                    | GET       | `/APP/CHANNEL/android/update/:current`      | Newer eligible manifest or `204`        |
+| [Generic](/docs/generic)   | GET       | `/APP/CHANNEL/generic/latest`               | Latest release or `204`                 |
+| Generic                    | GET       | `/APP/CHANNEL/generic/update/:current`      | Newer release or `204`                  |
+| Generic                    | GET       | `/APP/CHANNEL/generic/versions/:version`    | Exact version or `404`                  |
+| Generic                    | GET       | `/APP/CHANNEL/generic/releases`             | `{ releases: [...] }`                   |
+| Generic                    | GET       | `/APP/CHANNEL/generic/channels`             | `{ channels: [...] }`                   |
+
+Current-version parameters are semantic versions, not tags. An unknown application or channel returns `404`. Generic channel discovery still requires a valid channel path, but doesn't fetch releases from GitHub.
+
+## Asset downloads
+
+`GET` and `HEAD /APP/CHANNEL/assets/:release/:asset` resolve a registered provider release ID and asset ID within the channel. Use URLs returned by the API instead of constructing them from filenames. Missing IDs return `404`.
+
+The result redirects or streams according to the [delivery policy](/docs/assets). Range and conditional responses depend on the provider; the GitHub provider supports single ranges.
+
+## Webhooks
+
+`POST /webhooks/APP` is registered when the provider implements `verifyWebhook`. The GitHub provider requires a valid signature, a release event and the correct repository. See [webhooks](/docs/webhooks) for setup and status codes.
+
+## Standalone health checks
+
+The CLI adds these endpoints; `createUpserve()` alone doesn't:
+
+| Path                | Response                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `GET /health/live`  | `200`, `{ "status": "ok" }`                                                          |
+| `GET /health/ready` | `200`, `{ "status": "ready" }`, or `503`, `{ "status": "draining" }` during shutdown |
+
+These checks don't contact GitHub. Test an actual update endpoint to verify repository access and manifests.
+
+
+---
+title: Error responses
+description: Interpret HTTP statuses and decide when an update client should retry.
+---
+
+An Upserve operational error returns a small JSON object, for example:
+
+```json
+{ "error": "network" }
+```
+
+Raw GitHub responses and credentials aren't sent to clients. Not every HTTP error has this JSON shape: unmatched routes and some missing assets use Hono's normal `404` response.
+
+## Status codes
+
+| Status                      | Meaning                                                                                 | What to do                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `204 No Content`            | No release or applicable update for this request                                        | Keep the installed version; don't parse a JSON body                           |
+| `304 Not Modified`          | Your metadata ETag still matches, or a download validator matched                       | Reuse your client-side cached response                                        |
+| `401 Unauthorized`          | Application access denied, or webhook verification failed                               | Supply the correct downstream credentials or signature                        |
+| `404 Not Found`             | Unknown route/channel, missing release, manifest or asset                               | Check the exact URL and selected release's assets                             |
+| `422 Unprocessable Entity`  | Invalid version or upstream metadata                                                    | Correct the version or release files; repeated immediate retries won't fix it |
+| `429 Too Many Requests`     | Valid webhook deliveries arrived inside the local cooldown                              | Redeliver later if needed                                                     |
+| `503 Service Unavailable`   | Upstream failure, denied upstream access or refresh cooldown with no usable cached data | Respect `Retry-After` and investigate the error code                          |
+| `500 Internal Server Error` | An unexpected error, including a plugin/storage exception                               | Inspect your server integration without logging secrets                       |
+
+## Operational error codes
+
+| JSON `error`    | Default HTTP status              | Meaning                                                                    |
+| --------------- | -------------------------------- | -------------------------------------------------------------------------- |
+| `missing`       | `404`                            | A required resource isn't available                                        |
+| `invalid`       | `422`                            | Metadata or version validation failed                                      |
+| `auth`          | `503`                            | The upstream rejected access; this isn't a downstream client login failure |
+| `network`       | `503`                            | An upstream request or manifest load failed                                |
+| `rate_limit`    | `503`                            | Refresh is delayed; this may follow an earlier failure cooldown            |
+| `configuration` | `503` if raised during a request | Invalid configuration; normally discovered at startup                      |
+| `internal`      | `500`                            | An error outside the recognized operational categories                     |
+
+The original failing request may report `auth` or `network`, while a later request during its cooldown reports `rate_limit`. An error code alone isn't a complete history of GitHub's response.
+
+## Retry behavior
+
+When an error carries a retry deadline, Upserve includes `Retry-After` as a number of seconds. Clients should wait at least that long and add their own jitter when many installations retry together. Don't add a force-refresh query or repeatedly invalidate metadata from clients.
+
+A temporary failure can be hidden by a successful stale-data response until the configured stale window ends. A successful empty release list is different: it means there are no releases to offer. See [cache behavior](/docs/cache) and [symptom-based troubleshooting](/docs/troubleshooting).
 
 
 ---
 title: Troubleshooting
-description: Practical guidance for troubleshooting.
+description: Diagnose missing updates, upstream errors, private downloads and deployment problems.
 ---
 
-A 503 with Retry-After means the upstream failed or refresh is in cooldown. Do not force invalidation in a client retry loop. Check repository permissions and provider configuration. 401 means downstream authorization denied access. 422 means invalid metadata or a malformed version; confirm manifest checksums, filenames and tagPrefix.
+Start with the exact endpoint your client uses. `curl -i` shows the status, body and `Retry-After` header. The CLI's readiness endpoint only checks the service lifecycle; it doesn't prove that GitHub access or update manifests work.
 
-A 204 can mean no release, no newer version or no applicable platform. A missing manifest returns 404. Upstream invalid manifests are not valid updates. Ensure every referenced binary belongs to the selected release, and Electron file sizes match GitHub metadata.
+## My application doesn't detect a new release
 
-Changes may take a metadata TTL to appear. Use authenticated release webhooks and adjust TTLs deliberately. SQLite requires a writable parent directory and Node's built-in SQLite. Inspect public health routes separately from actual update requests; readiness does not prove GitHub access.
+1. Confirm the release is published, not a draft, and is in the channel your client requests.
+2. Check `tagPrefix`. A tag `editor-v1.2.0` needs `tagPrefix: "editor-v"`; `1.2.0` needs an empty prefix.
+3. If you've enabled the generic adapter, inspect selection directly:
 
-If downloads fail at 30 seconds, increase the GitHub timeout and reverse proxy limits. For Electron differential updates, retain old blockmaps and disable multiple-range requests with the GitHub generic feed.
+```sh
+curl -i http://localhost:3000/editor/stable/generic/latest
+curl -i http://localhost:3000/editor/prerelease/generic/latest
+```
+
+The selected version must be newer than the client's version by semantic precedence. If the old release is still selected, wait for `ttl` or inspect your [release webhook](/docs/webhooks). Trusted embedded code can call `await updates.refresh("editor")`; clients can't force a refresh.
+
+If selection is correct, inspect that framework's manifest in the **same release**. Upserve doesn't fall back to an older valid manifest when the newest release is incomplete.
+
+## Upserve returns 204 even though a newer version exists
+
+A `204` means the request has no applicable offer. It isn't an upstream error. Compare the selected channel, the current version in the URL, and any adapter compatibility rule.
+
+For Tauri, check the exact `target-arch` platform key. For Android, inspect your `compatible()` hook; it can suppress even the latest-manifest endpoint. The default prerelease channel doesn't include stable releases. Use [custom channels](/docs/channels) if you want a different rule.
+
+## My Tauri updater cannot find its platform
+
+Request the static manifest:
+
+```sh
+curl -i http://localhost:3000/editor/stable/tauri/latest.json
+```
+
+Compare its `platforms` keys with the dynamic request. `/tauri/darwin/aarch64/1.0.0` looks up `darwin-aarch64`. A custom key won't match that convention; use the static endpoint and your client's custom-target support.
+
+A `404` means `latest.json` is missing. A `422` means the manifest failed validation: check version, nonempty signatures and exact GitHub URLs for every platform. Keep the original signatures; changing the server endpoint doesn't require generating new ones.
+
+## GitHub reports a rate-limit error
+
+Look for `Retry-After` and wait. The provider respects primary and secondary rate limits. Existing metadata can still be served within its stale window, so an outage may not affect every check immediately.
+
+Don't set TTLs to zero or clear the cache on every failure. If several service instances share one credential, their cooldowns aren't coordinated. Reduce the number of instances or budget upstream requests accordingly. For a public repository, you can authenticate API access with `token` and explicit `private: false`; never use that override for a private source.
+
+## Upserve returns 503
+
+Read the JSON `error`:
+
+- `auth`: confirm the repository exists, the token can read it and the repository name is correct. GitHub can return `404` for a private repository you can't access; Upserve treats that as an access failure.
+- `network`: check server egress to GitHub and download hosts, DNS and timeouts.
+- `rate_limit`: honor the cooldown. This can follow an earlier network/access failure, not just a GitHub quota response.
+
+If the cache is empty or its stale window has ended, Upserve can't answer from old data. Restoring upstream access is the fix. Increasing `staleIfError` only helps future outages when valid data has already been cached.
+
+## Private release downloads return 401
+
+A `401` on an application route means your `authorize()` callback denied the client. It isn't GitHub asking for its token. Send the **downstream** credential on both update checks and downloads:
+
+```sh
+curl -i -H "Authorization: Bearer $UPDATE_CLIENT_TOKEN" \
+  http://localhost:3000/editor/stable/generic/latest
+```
+
+Make sure your proxy forwards `Authorization` and your updater preserves the header for the server asset URL. A `503` with `auth` points to upstream repository access instead. See [authentication](/docs/security).
+
+## Electron differential downloads fail
+
+First fetch the platform YAML and verify it references files uploaded to that release. Keep old blockmaps available and set `useMultipleRangeRequest: false` in the generic provider configuration.
+
+Test a returned installer URL through the same proxy your client uses:
+
+```sh
+curl -D - -H 'Range: bytes=0-1023' "$ASSET_URL" -o first-kib.bin
+```
+
+Expect `206` and `Content-Range` for a valid range. If the response is a redirect, repeat with `curl -L`. If the proxy changes it to a full `200`, inspect its range forwarding and buffering rules. Check the packaged client's logs too; full-download fallback, signing and installation are client behaviors.
+
+## Large installers time out
+
+The GitHub provider defaults to 30 seconds per upstream request. For streamed downloads, set `github({ repository: "owner/editor", timeout: 5 * 60 * 1000 })` and increase proxy/client timeouts as needed.
+
+Public redirect delivery avoids streaming the full file through Upserve. Private assets must stream. A deployment shutdown has a separate ten-second CLI drain deadline, so a long transfer may be interrupted during restarts.
+
+## SQLite cannot open its database
+
+Use Node.js 22.13 or newer; Node.js 24 is recommended. Create the parent directory before calling `sqliteCache()`, and ensure the process can write there. The CLI creates `UPSERVE_CACHE_DIR` for you when it manages the store.
+
+In Docker, the runtime user is UID/GID `10001`. Give that user write access to bind-mounted `/data`, or use the Compose named volume. Don't mount only the database file read-only; WAL needs writable adjacent files. See [SQLite setup](/docs/cache#persist-metadata-with-sqlite).
+
+## Packages cannot be found on npm
+
+During private initial development, publication may not have happened yet. Use the [checkout instructions](/docs/quick-start#run-from-a-repository-checkout). Don't replace the scoped package names with unrelated npm packages.

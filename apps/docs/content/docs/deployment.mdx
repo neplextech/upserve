@@ -1,12 +1,137 @@
 ---
-title: CLI, Docker and operations
-description: Practical guidance for cli, docker and operations.
+title: Standalone CLI and Docker
+description: Run Upserve as a service with typed configuration, health checks and persistent metadata.
 ---
 
-Install `@neplex/upserve-cli` and integrations. Run `npx @neplex/upserve-cli init`, edit upserve.config.ts, then `npx @neplex/upserve-cli start`. Before initial npm publication, run the workspace CLI through `pnpm exec tsx packages/cli/src/index.ts`.
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-Environment variables: UPSERVE_CONFIG (default upserve.config.ts), HOST (0.0.0.0), PORT (3000), UPSERVE_CACHE_DIR (optional persistent SQLite directory). Config files read secrets from environment variables explicitly; Upserve does not load .env automatically. Startup logs are structured JSON without secret error serialization. SIGINT/SIGTERM stop accepting work and allow ten seconds to drain. `/health/live` checks process health; `/health/ready` checks readiness to receive traffic, not upstream availability.
+Use the CLI if you want a standalone service. You don't need to write an HTTP listener. For an existing server, see [embedding in Hono, Node.js and Bun](/docs/embedding).
 
-Build the root Dockerfile with `docker build -t upserve .`. Use `docker compose up --build` after editing examples/upserve.config.ts. Mount a config and a writable data volume; the runtime UID is 10001. In Coolify, select Dockerfile deployment, expose port 3000, set secrets and mount `/data`. The default image is Node-specific and does not require Redis or PostgreSQL.
+## Install the CLI
 
-Use HTTPS at a reverse proxy. Forward the canonical Host, Range and conditional headers; disable response buffering. Do not cache private routes at a CDN. Use one process for strict process-local refresh coordination. Without timers, the first request after freshness ends refreshes opportunistically. Webhooks or trusted external scheduling can call the in-process refresh API; no open refresh endpoint is provided.
+Use Node.js 24 for the service and SQLite cache. Install the packages your configuration imports too:
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve-cli @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
+```
+
+</Tab>
+
+</Tabs>
+
+```sh
+npx upserve init
+```
+
+This creates `upserve.config.ts` and refuses to overwrite an existing file. The executable is `upserve`; you can also run `pnpm exec upserve`, `yarn upserve` or `bunx upserve` after installation.
+
+## Configuration file
+
+Edit the generated file. Use `editor` consistently as the application ID and replace `owner/editor` with your repository.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+```sh
+npx upserve start
+```
+
+The service prints structured JSON, including a line like:
+
+```json
+{ "time": "2026-01-01T00:00:00.000Z", "event": "listening", "port": 3000 }
+```
+
+Check it from another terminal:
+
+```sh
+curl http://localhost:3000/health/ready
+curl -i http://localhost:3000/editor/stable/generic/latest
+```
+
+Readiness returns `{"status":"ready"}`. The second request tests your release source; health endpoints don't contact GitHub.
+
+## Environment variables
+
+| Variable            | Default             | Purpose                                                 |
+| ------------------- | ------------------- | ------------------------------------------------------- |
+| `UPSERVE_CONFIG`    | `upserve.config.ts` | Path to your trusted TypeScript configuration           |
+| `HOST`              | `0.0.0.0`           | Listener address; use `127.0.0.1` for local-only access |
+| `PORT`              | `3000`              | Listener port, integer from 1 to 65535                  |
+| `UPSERVE_CACHE_DIR` | Unset               | Directory for `metadata.sqlite`; created if needed      |
+
+Set `UPSERVE_CACHE_DIR=./data` to enable persistent metadata unless your configuration already supplies a cache. The CLI opens and closes that SQLite store for you. It doesn't delete old entries automatically.
+
+Secrets such as `GITHUB_TOKEN` are read by **your configuration**, not automatically applied by the CLI. Upserve doesn't load `.env` files for you. Pass values through your shell, process manager or container environment. See [authentication](/docs/security) before adding a GitHub token.
+
+On `SIGINT` or `SIGTERM`, the service marks readiness as draining, stops accepting connections and allows up to ten seconds for requests to finish. Downloads that exceed the drain deadline can be interrupted. Liveness at `/health/live` returns `{"status":"ok"}`.
+
+## Docker Compose
+
+During initial development, build the image from the repository. No published image is assumed:
+
+```sh
+docker build -t upserve .
+```
+
+The repository's Compose file builds this image, mounts `examples/upserve.config.ts` and stores metadata in a named volume. Edit that configuration first, then run:
+
+```sh
+docker compose up --build -d
+docker compose logs -f upserve
+curl http://localhost:3000/health/ready
+```
+
+The image runs Node.js as UID/GID `10001`, listens on port `3000`, reads `/config/upserve.config.ts` and stores SQLite data under `/data`. Bind-mounted data directories must be writable by that user. Custom configuration imports must be installed in the image; mounting a config file doesn't install extra dependencies.
+
+## Coolify
+
+Select a Dockerfile deployment from this repository, expose port `3000`, mount persistent storage at `/data`, and mount your configuration at `/config/upserve.config.ts`. Configure environment secrets in Coolify. Use `/health/ready` for the health check and your platform's HTTPS proxy for the public domain.
+
+You don't need PostgreSQL or Redis. One process is the simplest deployment when you want all update checks to share refresh coordination.
+
+## Reverse proxy configuration
+
+Terminate HTTPS at your proxy and accept only the intended host. Upserve builds asset URLs from the incoming origin, so verify generated URLs use the public HTTPS host in your environment. Forward authorization, range and conditional headers, preserve `206` responses, and disable buffering for streamed downloads. Never cache private routes at the CDN.
+
+Upserve doesn't start a polling timer. Checks refresh expired metadata as needed; [GitHub webhooks](/docs/webhooks) can refresh release lists after publication. Don't expose the programmatic refresh methods as unauthenticated HTTP routes.

@@ -1,14 +1,87 @@
 ---
-title: Security and private releases
-description: Practical guidance for security and private releases.
+title: Authentication and security
+description: Protect private release metadata and downloads without exposing GitHub credentials.
 ---
 
-Upserve plugins and configuration execute as trusted application code. They are not sandboxed. Providers must validate URLs, redirect targets and untrusted upstream metadata before exposing it.
+import { Callout } from "fumadocs-ui/components/callout";
 
-Upstream repository authentication does not authorize clients. A token implies private mode unless explicitly overridden. Private mode requires an `authorize(request)` callback; denial returns 401 before any upstream work. A standalone configuration can compare a bearer header against an environment secret. Use constant-time verification or an existing authentication middleware for production. Do not put secrets in URLs, manifests or logs. Rotate provider cacheScope and deployment namespace on permission changes.
+<Callout type="warn">
 
-GitHub's fixed API origin and exact asset-host allowlist avoid arbitrary upstream proxying and DNS rebinding to attacker-controlled names. Custom private-network providers must explicitly implement and document their destination policy; the official provider does not support GitHub Enterprise or private network URLs.
+Giving Upserve a GitHub token lets it access your repository. It doesn't give your application users permission to download private releases. You configure that access separately.
 
-Metadata bodies, release/page counts, response lifetimes and refresh concurrency are bounded. Assets are only selected by registered IDs or exact names. No filesystem asset paths are built from client input. Request IDs, authorization bodies and upstream error bodies are not logged. Authenticated webhooks have bounded bodies and cooldowns.
+</Callout>
 
-Never store application signing keys. Use HTTPS externally; set a trusted canonical host at your reverse proxy because generated asset URLs use the request origin. Rate limit unauthenticated traffic at the edge, especially binary downloads. Follow SECURITY.md for disclosure; no security mailbox or configured advisory infrastructure is claimed.
+## Protect a private application
+
+A GitHub token implies `private: true` unless you override it. Private providers require an `authorize(request)` callback; Upserve refuses to create the application without one. Requests denied by that callback return `401` before any release lookup or download.
+
+This standalone example uses Hono's constant-time comparison utility for a server-managed bearer credential. Install `hono` along with the CLI, core, GitHub and generic packages. Supply both environment values before starting the service.
+
+```ts title="upserve.config.ts"
+import { timingSafeEqual } from "hono/utils/buffer";
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const githubToken = process.env.GITHUB_TOKEN;
+const clientToken = process.env.UPDATE_CLIENT_TOKEN;
+
+if (!githubToken || !clientToken) {
+  throw new Error("GITHUB_TOKEN and UPDATE_CLIENT_TOKEN are required");
+}
+
+export default defineConfig({
+  namespace: "editor-private-v1",
+  apps: {
+    editor: {
+      provider: github({
+        repository: "owner/editor",
+        token: githubToken,
+        cacheScope: "read-credential-generation-1",
+      }),
+      adapters: [generic()],
+      authorize: (request) =>
+        timingSafeEqual(request.headers.get("Authorization") ?? "", `Bearer ${clientToken}`),
+    },
+  },
+});
+```
+
+Use your existing authentication or entitlement verification for production applications. A shared token embedded in a distributed app can be extracted; it isn't an individual user identity. The callback can be asynchronous so you can verify your own credentials without adding an authentication system to Upserve.
+
+Send the downstream credential on **both** metadata and asset requests:
+
+```sh
+curl -H "Authorization: Bearer $UPDATE_CLIENT_TOKEN" \
+  http://localhost:3000/editor/stable/generic/latest
+```
+
+Do not send your GitHub token to application clients. Private assets always stream through Upserve; responses use `Cache-Control: private, no-store` when application authorization is configured.
+
+## Authenticated public repositories
+
+If your repository is public and you only need authenticated API access, explicitly set `private: false` in `github()`. This permits public metadata and redirects. Never use that setting to bypass private-repository access checks.
+
+## Cache isolation
+
+`namespace` separates deployments in a shared cache. The provider's `scope` separates repository/configuration and credential generations. GitHub includes its repository and tag prefix, and uses a random scope for authenticated providers unless you set `cacheScope`.
+
+For persistent reuse, set a nonsecret `cacheScope` that identifies a credential generation. Change it when you rotate credentials or change their permissions. Change the deployment namespace when you change the broader security boundary. Never use a token as either value.
+
+Authentication failures discovered during refresh clear the affected cache entry. Fresh cached data isn't a live check of GitHub permissions, and background refresh can return stale data before a revocation is detected. Keep downstream authorization active and use finite cache lifetimes. See [caching](/docs/cache#authentication-failures-are-different).
+
+## Downloads and network boundaries
+
+Only registered release assets can be downloaded. The official GitHub provider validates repository download URLs and follows API redirects only to its allowed GitHub asset hosts. Credentials go to `api.github.com`, not redirect destinations or client-visible URLs.
+
+Custom providers must implement their own URL and redirect policy. Support for a deliberate private-network source belongs in that provider's explicit configuration. It mustn't become an arbitrary URL proxy. See [custom providers](/docs/custom-providers).
+
+## Deploy safely
+
+- Use HTTPS and configure your reverse proxy to accept only your canonical host. Generated asset URLs use the request origin.
+- Forward authorization headers and disable CDN caching for protected routes.
+- Rate limit public traffic at the edge, especially downloads. Metadata refresh coordination isn't a general client rate limiter.
+- Keep signing private keys in your release pipeline. Upserve doesn't need them.
+- Load only trusted plugins and TypeScript configurations. They run as application code and aren't sandboxed.
+
+For vulnerability reports, follow the repository's [security policy](https://github.com/neplextech/upserve/blob/main/SECURITY.md). Don't include credentials or private download links in public reports.

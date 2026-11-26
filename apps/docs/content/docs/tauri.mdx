@@ -1,0 +1,151 @@
+---
+title: Tauri
+description: Connect a Tauri v2 updater to Upserve while keeping your existing signatures.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+Upserve serves the Tauri v2 updater protocol. Keep your current updater plugin and signing setup; change its endpoint to your Upserve server.
+
+This guide assumes you already build signed Tauri updates. If not, follow the [Tauri updater setup](https://v2.tauri.app/plugin/updater/) first. Upserve never needs your signing private key.
+
+<Steps>
+<Step>
+
+### Prepare your release
+
+Publish a GitHub release such as `v1.2.0` in `owner/editor`. Upload:
+
+- `latest.json`, using Tauri's static manifest format.
+- Every updater binary referenced in its `platforms` object.
+- The signatures produced by your existing build, included in that manifest.
+
+For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must exactly match the asset's GitHub download URL. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
+
+A static manifest has this shape. Replace the repository, artifact name and signature with the values produced by your release pipeline; `SIGNATURE_FROM_CI` isn't a usable signature.
+
+```json title="latest.json"
+{
+  "version": "1.2.0",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://github.com/owner/editor/releases/download/v1.2.0/editor.app.tar.gz",
+      "signature": "SIGNATURE_FROM_CI"
+    }
+  }
+}
+```
+
+Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Notes and publication date come from the release metadata.
+
+</Step>
+<Step>
+
+### Install and configure Upserve
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-tauri @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+Replace `owner/editor` with your repository.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { tauri } from "@neplex/upserve-tauri";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [tauri()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+If your manifest has another filename, use `tauri({ manifest: "updater.json" })`.
+
+</Step>
+<Step>
+
+### Set the updater endpoint
+
+In your existing `src-tauri/tauri.conf.json`, set the endpoint while keeping your real public key:
+
+```json title="src-tauri/tauri.conf.json (updater section)"
+{
+  "plugins": {
+    "updater": {
+      "pubkey": "YOUR_EXISTING_TAURI_PUBLIC_KEY",
+      "endpoints": [
+        "https://updates.example.com/editor/stable/tauri/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
+  }
+}
+```
+
+Replace `updates.example.com` with your deployed host. Keep your existing plugin registration and permissions. No new update-check implementation is required. Use HTTPS; Tauri's development HTTP opt-in is only for local testing.
+
+</Step>
+<Step>
+
+### Start and test
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/tauri/darwin/aarch64/1.0.0
+```
+
+With a valid `1.2.0` release for that platform, you'll receive `200` with `version`, `signature`, `url` and any available `notes` and `pub_date`. The signature is the one you published. A current version of `1.2.0`, or a missing `darwin-aarch64` platform, returns `204 No Content`.
+
+</Step>
+</Steps>
+
+## Static manifest clients
+
+`/editor/stable/tauri/latest.json` returns a static manifest with a `platforms` object. Use this endpoint for clients that need static manifest selection, including custom target keys. The dynamic endpoint constructs the key as `target-arch` and doesn't interpret custom target naming conventions.
+
+## If your update isn't detected
+
+Compare the target and architecture in your request with the exact key in `latest.json`, such as `windows-x86_64` or `linux-x86_64`. Confirm the requested version is older and the release belongs to the chosen [channel](/docs/channels).
+
+A missing manifest returns `404`. Invalid JSON, an empty signature, a version mismatch or a referenced binary outside the selected release returns `422` when there's no usable cached manifest. See [troubleshooting](/docs/troubleshooting) for cache and refresh checks.

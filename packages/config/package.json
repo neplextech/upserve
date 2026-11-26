@@ -1,6 +1,7 @@
 {
   "name": "@upserve/config",
   "private": true,
+  "homepage": "https://upserve.neplex.dev",
   "type": "module",
   "exports": {
     "./tsconfig.json": "./tsconfig.json"

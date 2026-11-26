@@ -1,0 +1,145 @@
+---
+title: Electron
+description: Serve electron-updater generic feeds, original YAML and differential download assets.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+This adapter supports **electron-builder applications using electron-updater's generic provider**. Electron's native `autoUpdater` uses protocols such as Squirrel and isn't interchangeable with electron-updater. Squirrel and Sparkle aren't supported by this adapter.
+
+<Steps>
+<Step>
+
+### Keep your electron-builder artifacts
+
+For each published release in `owner/editor`, upload electron-builder's original YAML and the files it references. Depending on your targets, those include:
+
+| Platform | Feed filename                                 | Typical artifacts                       |
+| -------- | --------------------------------------------- | --------------------------------------- |
+| Windows  | `latest.yml`                                  | NSIS installer and `.blockmap`          |
+| macOS    | `latest-mac.yml`                              | ZIP, DMG and generated blockmaps        |
+| Linux    | `latest-linux.yml` or `latest-linux-ARCH.yml` | Target artifacts and generated metadata |
+
+Use a tag such as `v1.2.0`. The YAML `version` must equal `1.2.0`. Each entry in `files` needs a SHA-512 base64 checksum and a positive file size matching the GitHub asset. File URLs must be relative basenames in the same release.
+
+Upserve returns the YAML unchanged. It doesn't regenerate checksums, re-sign metadata or create differential patches. Preserve your existing platform signing and electron-updater verification.
+
+</Step>
+<Step>
+
+### Install and configure the server
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-electron @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { electron } from "@neplex/upserve-electron";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [electron()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+Replace `owner/editor` with your repository.
+
+</Step>
+<Step>
+
+### Configure electron-updater
+
+Install `electron-updater` in your Electron application if it isn't already installed. In electron-builder's configuration, set a generic feed:
+
+```yaml title="electron-builder.yml (publish section)"
+publish:
+  provider: generic
+  url: https://updates.example.com/editor/stable/electron/
+  useMultipleRangeRequest: false
+```
+
+Replace the example host. Keep the trailing slash. Continue calling `autoUpdater.checkForUpdatesAndNotify()` from **electron-updater** in your main process. This is a focused client snippet for an already configured Electron application:
+
+```ts
+import { autoUpdater } from "electron-updater";
+
+autoUpdater.checkForUpdatesAndNotify();
+```
+
+If you configure the feed at runtime instead, pass the same `provider`, `url` and `useMultipleRangeRequest` to `autoUpdater.setFeedURL()`.
+
+</Step>
+<Step>
+
+### Start and test the feed
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/electron/latest.yml
+```
+
+Use `latest-mac.yml` or your Linux filename to test those targets. Expect `200` and the original YAML. Test the packaged app too; successful YAML retrieval alone doesn't prove signing, installation or differential download behavior on each operating system.
+
+</Step>
+</Steps>
+
+## Differential downloads
+
+Electron-updater can download only the parts of an installer that changed when you publish its existing blockmap data. Upserve makes the installer and blockmaps available and forwards the client's download requests. It doesn't generate those files.
+
+GitHub delivery supports single byte ranges. Set `useMultipleRangeRequest: false` so the client doesn't request multipart ranges. Keep the old release's blockmaps in the repository because a client upgrading from that release may request them. A reverse proxy must forward `Range` and preserve `206 Partial Content` responses. See [asset delivery](/docs/assets).
+
+## Prerelease feeds
+
+For a `beta` YAML prefix on the default `prerelease` channel, configure `electron({ channels: { prerelease: "beta" } })` and point your prerelease clients at `/editor/prerelease/electron/`. The `channels` option maps URL channel names to YAML filename prefixes; it doesn't select releases. [Release channels](/docs/channels) controls selection.
+
+## Supported configurations and limits
+
+NSIS installers, macOS ZIP/DMG feeds and Linux feeds with relative asset filenames are the intended configurations. Architecture-specific Linux YAML suffixes are accepted; every artifact referenced by a feed still needs to be in that release.
+
+Web installers using a YAML `packages` field, absolute external file URLs and alternate signed feed envelopes aren't supported. A missing feed returns `404`; malformed YAML, missing artifacts or mismatched checksums/sizes return `422` without a usable cached manifest. Upserve validates checksum format, not the binary's digest. Electron-updater must verify the actual download.
+
+For client details, see the [electron-builder auto-update guide](https://www.electron.build/docs/features/auto-update/) and [generic provider implementation](https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/GenericProvider.ts).

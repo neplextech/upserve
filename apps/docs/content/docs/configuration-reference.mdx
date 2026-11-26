@@ -1,0 +1,60 @@
+---
+title: Configuration options
+description: Look up required fields, defaults and advanced server settings.
+---
+
+Use this reference after the [quick start](/docs/quick-start). Configuration uses the same `UpserveConfig` shape for `createUpserve()` and the CLI's `defineConfig()`.
+
+## UpserveConfig
+
+| Option        | Type                               | Required | Default             | Behavior                                                                  |
+| ------------- | ---------------------------------- | -------- | ------------------- | ------------------------------------------------------------------------- |
+| `apps`        | `Record<string, AppConfig>`        | Yes      | None                | Registers applications by URL identifier                                  |
+| `cache`       | `CacheStore`                       | No       | `memoryCache(1000)` | Chooses the metadata store shared by this instance                        |
+| `namespace`   | `string`                           | No       | `"upserve-v1"`      | Separates deployment data in the store                                    |
+| `concurrency` | `number`                           | No       | `4`                 | Limits simultaneous loads per coordination pool; integer `1` through `64` |
+| `now`         | `() => number`                     | No       | `Date.now`          | Supplies epoch milliseconds for cache timing in deterministic tests       |
+| `background`  | `(task: Promise<unknown>) => void` | No       | None; await refresh | Lets the host keep a stale-data refresh alive after responding            |
+
+Use `namespace` when multiple deployments share a persistent store. Change it when you change a deployment's security boundary. It isn't a secret.
+
+There are separate coordination pools for resolved metadata and provider resources. `concurrency` doesn't limit active binary downloads or enforce a distributed budget. `now` controls cache timing; it doesn't replace GitHub's wall clock for rate-limit headers or webhook cooldowns.
+
+Only configure `background` if your runtime guarantees the task can finish. See [runtime guidance](/docs/embedding#other-fetch-based-runtimes).
+
+## AppConfig
+
+| Option      | Type                                                         | Required              | Default                                     | Behavior                                                        |
+| ----------- | ------------------------------------------------------------ | --------------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| `provider`  | `Provider`                                                   | Yes                   | None                                        | Source of release metadata and assets                           |
+| `adapters`  | `Adapter[]`                                                  | Yes                   | None                                        | Protocol routes mounted for this application                    |
+| `authorize` | `(request: Request) => boolean` or `Promise<boolean>` result | For private providers | No access check                             | Denies with `401` when it returns false                         |
+| `channels`  | `Record<string, (release: Release) => boolean>`              | No                    | Stable and prerelease predicates            | Replaces the default channel map                                |
+| `cache`     | `CachePolicy`                                                | No                    | See below                                   | Sets this application's metadata lifetimes                      |
+| `delivery`  | `"redirect"` or `"stream"`                                   | No                    | Redirect if public and provider supports it | Chooses public binary delivery; private providers always stream |
+
+See [applications](/docs/configuration), [channels](/docs/channels) and [authentication](/docs/security) for examples.
+
+## CachePolicy
+
+| Option         | Type     | Required | Default      | Example                                             |
+| -------------- | -------- | -------- | ------------ | --------------------------------------------------- |
+| `ttl`          | `number` | No       | `60_000` ms  | `5 * 60 * 1000` for five minutes fresh              |
+| `negativeTtl`  | `number` | No       | `15_000` ms  | `10 * 1000` for ten seconds with no releases        |
+| `staleIfError` | `number` | No       | `300_000` ms | `10 * 60 * 1000` for ten extra minutes after expiry |
+
+All values must be finite and nonnegative. Zero is allowed. A zero stale window disables serving old metadata after freshness ends. A zero TTL causes every check to need refresh coordination, so don't use it to bypass GitHub limits.
+
+## Provider and adapter options
+
+| Factory                    | Configuration reference                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `github(options)`          | [GitHub options](/docs/github#options-you-may-need) and [test injection](/docs/api#githuboptions) |
+| `tauri(options?)`          | [TauriOptions](/docs/api#taurioptions)                                                            |
+| `electron(options?)`       | [ElectronOptions](/docs/api#electronoptions)                                                      |
+| `android(options?)`        | [AndroidOptions](/docs/api#androidoptions)                                                        |
+| `generic()`                | No options                                                                                        |
+| `memoryCache(maxEntries?)` | [Memory cache](/docs/api#memorycache)                                                             |
+| `sqliteCache(filename)`    | [SQLite cache](/docs/api#sqlitecache)                                                             |
+
+The [CLI environment variables](/docs/deployment#environment-variables) configure the listener and configuration path. They aren't fields in `UpserveConfig`.

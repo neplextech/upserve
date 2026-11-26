@@ -1,24 +1,138 @@
 ---
-title: Cache behavior and failures
-description: Practical guidance for cache behavior and failures.
+title: Caching and rate limits
+description: Understand what clients receive when metadata expires, GitHub fails or a release changes.
 ---
 
-The default memory cache is a process-local LRU with 1,000 entries. Default fresh TTL is 60 seconds, negative TTL 15 seconds and stale-if-error window five minutes after freshness ends. Configure per application using `cache: { ttl, negativeTtl, staleIfError }`.
+Suppose several hundred installed copies of Editor check for updates at startup. If each one asks GitHub directly, they all consume API requests for the same release information. With Upserve, those clients share cached metadata.
 
-Concurrent loads of the same key share a promise. Refresh concurrency is bounded per Upserve instance. Supply `background` to return stale data while a refresh runs; otherwise the caller awaits refresh. Failure cooldowns prevent repeated cold-cache traffic from hammering the upstream. A cold failure returns 503; a missing release list is successful empty data. Invalid metadata cannot replace the last validated release list. Authentication failures fail closed. After the stale window expires, temporary failures return 503.
+The first check loads the release list. Checks during the fresh period reuse it. If many clients arrive together when it expires, Upserve performs one refresh for that data and shares the result. This is called **request coalescing**: a burst of checks doesn't become a burst of identical GitHub requests.
 
-Successful empty lists replace the old state, so deleted and withdrawn releases disappear after refresh. Cached data can remain visible until its freshness window ends; webhook refresh reduces this delay. Programmatic `await updates.refresh('editor')` bypasses freshness while respecting cooldowns; `await updates.invalidate('editor')` expires release selection. Explicit refresh also revalidates provider page resources. There are no client query parameters that bypass caches.
+## What gets cached
 
-SQLite persists JSON metadata with WAL and uses `node:sqlite`:
+Upserve caches normalized release lists, provider resources such as GitHub API pages, and validated adapter manifests. It doesn't store installers, APKs or blockmaps. Those files redirect to the upstream or stream through your server.
 
-```ts
-import { sqliteCache } from "@neplex/upserve-sqlite";
-const cache = sqliteCache("./data/metadata.sqlite");
-// Pass cache to createUpserve; call cache.close() after requests drain.
+The default store holds up to 1,000 metadata entries in memory. Restarting the process clears it. Use [SQLite](#persist-metadata-with-sqlite) if you need cached metadata after a restart.
+
+## Default timing
+
+All cache options are in **milliseconds** and apply per application.
+
+| Option         | Default                  | Meaning                                                             |
+| -------------- | ------------------------ | ------------------------------------------------------------------- |
+| `ttl`          | `60_000` (one minute)    | How long successful metadata stays fresh                            |
+| `negativeTtl`  | `15_000` (15 seconds)    | How long a confirmed empty release list stays fresh                 |
+| `staleIfError` | `300_000` (five minutes) | How long previously validated data can be used after freshness ends |
+
+For a release list loaded at 12:00:00 with these defaults:
+
+| Time                                   | What a check does                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| Before 12:01:00                        | Uses the fresh cached list                                               |
+| At or after 12:01:00                   | Tries to refresh before answering, unless you enabled background refresh |
+| During an outage, before 12:06:00      | Can answer with the old list if refresh fails                            |
+| During an outage, at or after 12:06:00 | Returns an error because the old list has expired completely             |
+
+This is **stale-if-error**: old but validated metadata can bridge a short outage. It isn't an unlimited fallback. Each resource has its own timestamps, so manifest and list expiry can differ.
+
+## When GitHub is unavailable
+
+If GitHub fails and Upserve has usable cached metadata, the client can still get an update response until the stale window ends. A malformed refresh doesn't replace the previous validated data.
+
+If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds.
+
+A successful **empty** release list means no releases exist. It replaces the previous list and uses the shorter `negativeTtl`. This is **negative caching**: Upserve remembers that nothing was found without treating an outage as an empty repository.
+
+## When GitHub rate limits requests
+
+The GitHub provider reads `Retry-After` and rate-limit reset headers and pauses further upstream work until the deadline. It also recognizes secondary throttling responses. During that pause, clients can use metadata still inside its stale window. Otherwise they receive `503` with an error code and, when available, a `Retry-After` header.
+
+Don't invalidate the cache in a client retry loop. That won't override a provider cooldown and removes data that might have kept your update checks working. Let clients retry later and use [webhooks](/docs/webhooks) for release changes.
+
+## Authentication failures are different
+
+When a refresh reports an upstream authentication error, Upserve clears the affected cached entry instead of serving it as an outage fallback. The request reports an error, and later checks respect the cooldown.
+
+This isn't an immediate credential-revocation check on every client request. Fresh data can be served until refresh discovers the problem. With background refresh enabled, the request that starts the refresh can receive stale data before that failure is known. Enforce user access in `authorize()` on every request and rotate cache scopes when permissions change.
+
+## Change the lifetimes
+
+For an app that rarely publishes and can tolerate a longer update delay:
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+      cache: {
+        ttl: 5 * 60 * 1000,
+        negativeTtl: 15 * 1000,
+        staleIfError: 10 * 60 * 1000,
+      },
+    },
+  },
+});
 ```
 
-Create the parent directory first. Use a deployment `namespace` and provider `cacheScope` when sharing persistent storage across restarts. Rotate both when security boundaries change. Authenticated providers default to a random credential scope unless explicitly configured, preventing accidental cross-credential reuse. Cache keys never contain raw tokens.
+This keeps metadata fresh for five minutes and allows ten additional minutes during errors. Shorten `ttl` when update latency matters; keep a finite stale window that fits your release withdrawal policy. A longer TTL also means a deleted or withdrawn release can remain visible longer.
 
-Coordination and cooldown state are local to one process. Shared cache deployments do not have distributed locking or globally enforced upstream concurrency. Deploy one instance per credential scope when that guarantee matters. No permanent binary cache or automatic disk pruning is provided; monitor persistent metadata storage.
+## Make new releases available
 
-Client metadata responses use ETags. Private responses are `private, no-store`; public metadata requires revalidation. Liveness and readiness do not probe GitHub.
+There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event.
+
+Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh, while respecting cooldowns. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
+
+`await updates.invalidate("editor")` removes the resolved release-list entry. The next check reloads it, but invalidation doesn't remove every provider resource or manifest. Use these methods only from trusted server code; Upserve has no public force-refresh query parameter or admin endpoint.
+
+A successful refresh removes deleted and yanked releases from selection. An invalid newest manifest causes an error rather than falling back to an older release. Prefer immutable release artifacts and publish a new version to correct a bad update.
+
+## Refresh in the background
+
+If your host can keep work alive after responding, supply `background(task)`. Upserve can then return usable stale data immediately and refresh it in the background. This is **stale-while-revalidate**.
+
+Without this option, checks wait for the refresh and need no long-lived timer or background runtime support. Don't pass a fire-and-forget callback on a host that can terminate work after the response. See [runtime guidance](/docs/embedding#other-fetch-based-runtimes).
+
+## Persist metadata with SQLite
+
+Install `@neplex/upserve-sqlite` alongside your server packages. It uses Node's built-in SQLite module and isn't a Workers cache.
+
+```ts title="persistent-config.ts"
+import { mkdir } from "node:fs/promises";
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+import { sqliteCache } from "@neplex/upserve-sqlite";
+
+await mkdir("./data", { recursive: true });
+
+export const cache = sqliteCache("./data/metadata.sqlite");
+
+export default defineConfig({
+  namespace: "editor-production-v1",
+  cache,
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+```
+
+Close the store with `cache.close()` after requests drain. The CLI can manage this for you when you set `UPSERVE_CACHE_DIR`; see [deployment](/docs/deployment).
+
+SQLite uses WAL mode and persists metadata and timestamps. It doesn't automatically prune old rows or cache binaries. Monitor disk use, especially if you change namespaces or publish many releases.
+
+## Advanced coordination and isolation
+
+Each Upserve instance coordinates its own refreshes. A shared store doesn't add distributed locks, a global GitHub rate-limit budget or a shared concurrency limit. Multiple processes can refresh the same data simultaneously. Use one instance per credential scope if you need that coordination guarantee.
+
+The default concurrency is four per coordination pool, with separate pools for resolved data and provider resources. It isn't a four-request limit for all downloads. See [configuration options](/docs/configuration-reference).
+
+Cache keys separate deployments, applications, providers and provider scopes. Channels filter the app's shared release list. GitHub page validators are saved with the page: a later conditional request can use ETag or Last-Modified and reuse a `304` response. See [private cache isolation](/docs/security#cache-isolation) before sharing persistent storage.
+
+Client metadata responses also have ETags. Public metadata requires revalidation; protected responses use `private, no-store`. HTTP caching at your CDN is a separate policy from Upserve's server-side metadata cache.

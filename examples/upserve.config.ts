@@ -4,8 +4,8 @@ import { generic } from "@neplex/upserve-generic";
 
 export default defineConfig({
   apps: {
-    example: {
-      provider: github({ repository: "example/editor" }),
+    editor: {
+      provider: github({ repository: "owner/editor" }),
       adapters: [generic()],
     },
   },

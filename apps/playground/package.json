@@ -1,6 +1,7 @@
 {
   "name": "@upserve/playground",
   "private": true,
+  "homepage": "https://upserve.neplex.dev",
   "type": "module",
   "dependencies": {
     "@hono/node-server": "catalog:",

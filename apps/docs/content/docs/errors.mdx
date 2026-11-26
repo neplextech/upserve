@@ -1,0 +1,45 @@
+---
+title: Error responses
+description: Interpret HTTP statuses and decide when an update client should retry.
+---
+
+An Upserve operational error returns a small JSON object, for example:
+
+```json
+{ "error": "network" }
+```
+
+Raw GitHub responses and credentials aren't sent to clients. Not every HTTP error has this JSON shape: unmatched routes and some missing assets use Hono's normal `404` response.
+
+## Status codes
+
+| Status                      | Meaning                                                                                 | What to do                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `204 No Content`            | No release or applicable update for this request                                        | Keep the installed version; don't parse a JSON body                           |
+| `304 Not Modified`          | Your metadata ETag still matches, or a download validator matched                       | Reuse your client-side cached response                                        |
+| `401 Unauthorized`          | Application access denied, or webhook verification failed                               | Supply the correct downstream credentials or signature                        |
+| `404 Not Found`             | Unknown route/channel, missing release, manifest or asset                               | Check the exact URL and selected release's assets                             |
+| `422 Unprocessable Entity`  | Invalid version or upstream metadata                                                    | Correct the version or release files; repeated immediate retries won't fix it |
+| `429 Too Many Requests`     | Valid webhook deliveries arrived inside the local cooldown                              | Redeliver later if needed                                                     |
+| `503 Service Unavailable`   | Upstream failure, denied upstream access or refresh cooldown with no usable cached data | Respect `Retry-After` and investigate the error code                          |
+| `500 Internal Server Error` | An unexpected error, including a plugin/storage exception                               | Inspect your server integration without logging secrets                       |
+
+## Operational error codes
+
+| JSON `error`    | Default HTTP status              | Meaning                                                                    |
+| --------------- | -------------------------------- | -------------------------------------------------------------------------- |
+| `missing`       | `404`                            | A required resource isn't available                                        |
+| `invalid`       | `422`                            | Metadata or version validation failed                                      |
+| `auth`          | `503`                            | The upstream rejected access; this isn't a downstream client login failure |
+| `network`       | `503`                            | An upstream request or manifest load failed                                |
+| `rate_limit`    | `503`                            | Refresh is delayed; this may follow an earlier failure cooldown            |
+| `configuration` | `503` if raised during a request | Invalid configuration; normally discovered at startup                      |
+| `internal`      | `500`                            | An error outside the recognized operational categories                     |
+
+The original failing request may report `auth` or `network`, while a later request during its cooldown reports `rate_limit`. An error code alone isn't a complete history of GitHub's response.
+
+## Retry behavior
+
+When an error carries a retry deadline, Upserve includes `Retry-After` as a number of seconds. Clients should wait at least that long and add their own jitter when many installations retry together. Don't add a force-refresh query or repeatedly invalidate metadata from clients.
+
+A temporary failure can be hidden by a successful stale-data response until the configured stale window ends. A successful empty release list is different: it means there are no releases to offer. See [cache behavior](/docs/cache) and [symptom-based troubleshooting](/docs/troubleshooting).

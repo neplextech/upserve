@@ -1,0 +1,165 @@
+---
+title: Android
+description: Publish APK update metadata and connect your own Android update client.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+Android has no universal updater protocol for apps distributed outside Google Play. Upserve supplies a JSON manifest and an APK download URL. Your app decides when to check, verifies the download and uses Android's supported installation flow with the user's consent.
+
+You don't give Upserve your APK signing keys. Keep signing APKs in your existing release pipeline.
+
+<Steps>
+<Step>
+
+### Publish the APK and its manifest
+
+Upload your signed `editor.apk` and `latest-android.json` to the same GitHub release, such as `v1.2.0` in `owner/editor`.
+
+```json title="latest-android.json"
+{
+  "version": "1.2.0",
+  "versionCode": 12,
+  "notes": "Fixes startup on Android 15.",
+  "pub_date": "2026-01-01T00:00:00Z",
+  "android": {
+    "url": "https://github.com/owner/editor/releases/download/v1.2.0/editor.apk",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 12345
+  }
+}
+```
+
+The checksum and size above are placeholders. Generate the real values from the **final signed APK** in your release pipeline:
+
+```sh
+sha256sum editor.apk
+wc -c < editor.apk
+```
+
+On macOS, use `shasum -a 256 editor.apk`. The manifest URL must exactly match the APK's GitHub download URL. Its version must match the release version, and its size must match the GitHub asset metadata.
+
+</Step>
+<Step>
+
+### Install and start the server
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-android @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { android } from "@neplex/upserve-android";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [android()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+Replace `owner/editor` with your repository, then run:
+
+```sh
+npx tsx server.ts
+curl -i http://localhost:3000/editor/stable/android/update/1.0.0
+```
+
+A newer release returns the manifest with its APK URL pointing through Upserve's asset route. A current client returns `204 No Content`. `/editor/stable/android/latest.json` returns the latest manifest without a current-version comparison.
+
+</Step>
+<Step>
+
+### Add the client update check
+
+Have your Android client request the update URL with its current semantic version. Handle `204` as no update. For `200`, show the release notes and ask the user before downloading or installing.
+
+Before installation, verify the downloaded file's length, SHA-256, application package name and signing certificate. Upserve checks the metadata's shape and asset size; it doesn't download and hash the APK on your behalf. Follow Android's [PackageInstaller API](https://developer.android.com/reference/android/content/pm/PackageInstaller) and the platform's permission requirements.
+
+</Step>
+</Steps>
+
+## Manifest fields
+
+| Field            | Type                      | Required | Meaning                                         |
+| ---------------- | ------------------------- | -------- | ----------------------------------------------- |
+| `version`        | `string`                  | Yes      | Semantic version matching the release           |
+| `android.url`    | `string`                  | Yes      | Exact APK download URL in the same release      |
+| `android.sha256` | `string`                  | Yes      | 64 hexadecimal characters                       |
+| `android.size`   | `number`                  | Yes      | Positive integer length in bytes                |
+| `versionCode`    | `number`                  | No       | Positive Android version code                   |
+| `notes`          | `string` or `null`        | No       | Release notes for your UI                       |
+| `pub_date`       | `string`                  | No       | Publication timestamp supplied by your pipeline |
+| `minimumVersion` | `string`                  | No       | Semantic version floor for your own policy      |
+| `compatibility`  | `Record<string, unknown>` | No       | Your SDK, ABI or device metadata                |
+
+## Compatibility policies
+
+By default, Upserve compares semantic versions only. `versionCode`, `minimumVersion` and `compatibility` don't enforce an upgrade policy automatically. Your client or the `compatible` hook must interpret them.
+
+This complete adapter definition suppresses offers for clients below a declared minimum. Add it to your application's `adapters` array instead of `android()`:
+
+```ts title="android-adapter.ts"
+import { newer, validVersion } from "@neplex/upserve";
+import { android } from "@neplex/upserve-android";
+
+export const androidAdapter = android({
+  compatible(manifest, request) {
+    if (!manifest.minimumVersion) return true;
+
+    const current = request.headers.get("X-App-Version");
+
+    return Boolean(current && validVersion(current) && !newer(manifest.minimumVersion, current));
+  },
+});
+```
+
+The client must send `X-App-Version` in this example. A `false` result returns `204` on either Android endpoint.
+
+Use `android({ manifest: "updates.json" })` for a different filename. Use `transform(input)` to translate an existing format into `AndroidManifest` before validation. Treat its input as untrusted and validate fields; the hook doesn't bypass Upserve's asset checks.
+
+## Common problems
+
+If you receive `422`, compare the manifest version with the tag after removing `tagPrefix`, verify the SHA-256 format and confirm the APK size. The asset name must end in `.apk`. If the response is `204`, inspect the current version, channel and compatibility hook. See [troubleshooting](/docs/troubleshooting).

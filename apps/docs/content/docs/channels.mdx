@@ -1,0 +1,52 @@
+---
+title: Release channels
+description: Select stable, prerelease and custom release streams using semantic versions.
+---
+
+Channels decide which releases an endpoint can see. They don't create releases or change the files you've published.
+
+With the default configuration:
+
+| Channel      | Included releases                                |
+| ------------ | ------------------------------------------------ |
+| `stable`     | Releases whose provider sets `prerelease: false` |
+| `prerelease` | Releases whose provider sets `prerelease: true`  |
+
+For GitHub, this flag comes from the release's **Set as a pre-release** setting. It is separate from whether the tag contains a suffix such as `-beta.1`. Keep the tag and GitHub setting consistent so a beta doesn't enter your stable channel.
+
+## Define your own channels
+
+The `channels` object replaces both defaults. Include `stable` yourself if you still want it.
+
+```ts title="upserve.config.ts"
+import { defineConfig } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+export default defineConfig({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+      channels: {
+        stable: (release) => !release.prerelease,
+        beta: (release) => release.prerelease && release.version.includes("-beta."),
+      },
+    },
+  },
+});
+```
+
+Request `/editor/beta/generic/latest` to check that selection. Channel predicates can inspect the normalized release, including provider-specific `metadata`, but should stay synchronous and avoid network work.
+
+## Which release wins?
+
+Upserve removes drafts and yanked releases, sorts the remaining releases by semantic version, then applies your channel predicate. `1.10.0` sorts above `1.9.0`, and `1.0.0-beta.10` sorts above `1.0.0-beta.2`. Publication order doesn't decide the winner. Build metadata such as `+build.5` doesn't increase version precedence.
+
+The selected release must contain the manifest and artifacts for the adapter you're using. An invalid newest release produces an error; it doesn't automatically fall back to an older one.
+
+## Tags aren't versions
+
+The GitHub provider removes `v` by default: `v1.2.0` becomes `1.2.0`. Use `tagPrefix: "editor-v"` for `editor-v1.2.0`, or `tagPrefix: ""` for bare `1.2.0` tags. Tags that don't match the prefix and a valid semantic version are ignored.
+
+Changing a channel predicate while reusing a cache is safe for selection because predicates run after metadata is loaded. Changing repository credentials needs a new [cache scope](/docs/security#cache-isolation), not just a different channel name.

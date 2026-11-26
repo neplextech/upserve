@@ -1,0 +1,152 @@
+---
+title: Quick start
+description: Install Upserve, start a Node.js server and check a GitHub release.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+This guide runs an update server for an application called **Editor**. Its application ID is `editor`, and its release repository is `owner/editor`. Replace `owner/editor` with your own public GitHub repository everywhere it appears.
+
+You'll need Node.js 22.13 or newer, a package manager and at least one published release with a semantic version tag such as `v1.2.0`. You don't need a database or a GitHub token for a public repository.
+
+<Steps>
+<Step>
+
+### Install the server packages
+
+In a new project directory, create a `package.json` if you don't have one:
+
+```sh
+npm init -y
+```
+
+Then install the packages with your preferred package manager.
+
+<Tabs items={["npm", "pnpm", "Yarn", "Bun"]}>
+
+<Tab value="npm">
+
+```sh
+npm install @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="pnpm">
+
+```sh
+pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Yarn">
+
+```sh
+yarn add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+<Tab value="Bun">
+
+```sh
+bun add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic @hono/node-server
+```
+
+</Tab>
+
+</Tabs>
+
+The core handles release selection and caching. The GitHub package reads releases, the generic adapter exposes JSON endpoints, and the Hono Node adapter starts the HTTP listener.
+
+</Step>
+<Step>
+
+### Create your server
+
+Save this as `server.ts`. The generic API lets you verify the server before connecting a framework-specific updater.
+
+```ts title="server.ts"
+import { serve } from "@hono/node-server";
+import { createUpserve } from "@neplex/upserve";
+import { github } from "@neplex/upserve-github";
+import { generic } from "@neplex/upserve-generic";
+
+const updates = createUpserve({
+  apps: {
+    editor: {
+      provider: github({ repository: "owner/editor" }),
+      adapters: [generic()],
+    },
+  },
+});
+
+serve({ fetch: updates.fetch, port: 3000 });
+```
+
+</Step>
+<Step>
+
+### Start it
+
+```sh
+npx tsx server.ts
+```
+
+This command uses `tsx` to run TypeScript. The library example doesn't print a startup banner. Leave it running and open another terminal.
+
+</Step>
+<Step>
+
+### Make an update request
+
+First, check the configured channels. This request doesn't contact GitHub:
+
+```sh
+curl http://localhost:3000/editor/stable/generic/channels
+```
+
+```json
+{ "channels": ["stable", "prerelease"] }
+```
+
+Now request your latest stable release:
+
+```sh
+curl -i http://localhost:3000/editor/stable/generic/latest
+```
+
+For a published `v1.2.0` release, the JSON includes `"version": "1.2.0"` and the release assets. If there are no matching published releases, you'll receive `204 No Content`. A `503` usually means GitHub couldn't be reached or the repository isn't accessible. See [error responses](/docs/errors).
+
+</Step>
+<Step>
+
+### Connect your updater
+
+Use the [Tauri](/docs/tauri), [Electron](/docs/electron) or [Android](/docs/android) guide to add that adapter and configure your client. For your own client, request `/editor/stable/generic/update/1.0.0` and follow the [generic API guide](/docs/generic).
+
+Use HTTPS when you deploy. See [standalone and Docker deployment](/docs/deployment) if you'd rather run a service than maintain this small server file.
+
+</Step>
+</Steps>
+
+## Run from a repository checkout
+
+Before the packages are published, clone the Upserve repository using an account with access. From its root, run:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm exec tsx apps/playground/index.ts
+```
+
+The playground uses local fixtures, so you can check `/demo/stable/generic/latest` without GitHub credentials. For your own repository, edit `examples/upserve.config.ts` and start the workspace CLI:
+
+```sh
+UPSERVE_CONFIG=examples/upserve.config.ts pnpm exec tsx packages/cli/src/index.ts start
+```
+
+See [CLI configuration](/docs/deployment#configuration-file) for environment variables and startup output.

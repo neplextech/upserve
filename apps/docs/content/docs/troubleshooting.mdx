@@ -1,12 +1,94 @@
 ---
 title: Troubleshooting
-description: Practical guidance for troubleshooting.
+description: Diagnose missing updates, upstream errors, private downloads and deployment problems.
 ---
 
-A 503 with Retry-After means the upstream failed or refresh is in cooldown. Do not force invalidation in a client retry loop. Check repository permissions and provider configuration. 401 means downstream authorization denied access. 422 means invalid metadata or a malformed version; confirm manifest checksums, filenames and tagPrefix.
+Start with the exact endpoint your client uses. `curl -i` shows the status, body and `Retry-After` header. The CLI's readiness endpoint only checks the service lifecycle; it doesn't prove that GitHub access or update manifests work.
 
-A 204 can mean no release, no newer version or no applicable platform. A missing manifest returns 404. Upstream invalid manifests are not valid updates. Ensure every referenced binary belongs to the selected release, and Electron file sizes match GitHub metadata.
+## My application doesn't detect a new release
 
-Changes may take a metadata TTL to appear. Use authenticated release webhooks and adjust TTLs deliberately. SQLite requires a writable parent directory and Node's built-in SQLite. Inspect public health routes separately from actual update requests; readiness does not prove GitHub access.
+1. Confirm the release is published, not a draft, and is in the channel your client requests.
+2. Check `tagPrefix`. A tag `editor-v1.2.0` needs `tagPrefix: "editor-v"`; `1.2.0` needs an empty prefix.
+3. If you've enabled the generic adapter, inspect selection directly:
 
-If downloads fail at 30 seconds, increase the GitHub timeout and reverse proxy limits. For Electron differential updates, retain old blockmaps and disable multiple-range requests with the GitHub generic feed.
+```sh
+curl -i http://localhost:3000/editor/stable/generic/latest
+curl -i http://localhost:3000/editor/prerelease/generic/latest
+```
+
+The selected version must be newer than the client's version by semantic precedence. If the old release is still selected, wait for `ttl` or inspect your [release webhook](/docs/webhooks). Trusted embedded code can call `await updates.refresh("editor")`; clients can't force a refresh.
+
+If selection is correct, inspect that framework's manifest in the **same release**. Upserve doesn't fall back to an older valid manifest when the newest release is incomplete.
+
+## Upserve returns 204 even though a newer version exists
+
+A `204` means the request has no applicable offer. It isn't an upstream error. Compare the selected channel, the current version in the URL, and any adapter compatibility rule.
+
+For Tauri, check the exact `target-arch` platform key. For Android, inspect your `compatible()` hook; it can suppress even the latest-manifest endpoint. The default prerelease channel doesn't include stable releases. Use [custom channels](/docs/channels) if you want a different rule.
+
+## My Tauri updater cannot find its platform
+
+Request the static manifest:
+
+```sh
+curl -i http://localhost:3000/editor/stable/tauri/latest.json
+```
+
+Compare its `platforms` keys with the dynamic request. `/tauri/darwin/aarch64/1.0.0` looks up `darwin-aarch64`. A custom key won't match that convention; use the static endpoint and your client's custom-target support.
+
+A `404` means `latest.json` is missing. A `422` means the manifest failed validation: check version, nonempty signatures and exact GitHub URLs for every platform. Keep the original signatures; changing the server endpoint doesn't require generating new ones.
+
+## GitHub reports a rate-limit error
+
+Look for `Retry-After` and wait. The provider respects primary and secondary rate limits. Existing metadata can still be served within its stale window, so an outage may not affect every check immediately.
+
+Don't set TTLs to zero or clear the cache on every failure. If several service instances share one credential, their cooldowns aren't coordinated. Reduce the number of instances or budget upstream requests accordingly. For a public repository, you can authenticate API access with `token` and explicit `private: false`; never use that override for a private source.
+
+## Upserve returns 503
+
+Read the JSON `error`:
+
+- `auth`: confirm the repository exists, the token can read it and the repository name is correct. GitHub can return `404` for a private repository you can't access; Upserve treats that as an access failure.
+- `network`: check server egress to GitHub and download hosts, DNS and timeouts.
+- `rate_limit`: honor the cooldown. This can follow an earlier network/access failure, not just a GitHub quota response.
+
+If the cache is empty or its stale window has ended, Upserve can't answer from old data. Restoring upstream access is the fix. Increasing `staleIfError` only helps future outages when valid data has already been cached.
+
+## Private release downloads return 401
+
+A `401` on an application route means your `authorize()` callback denied the client. It isn't GitHub asking for its token. Send the **downstream** credential on both update checks and downloads:
+
+```sh
+curl -i -H "Authorization: Bearer $UPDATE_CLIENT_TOKEN" \
+  http://localhost:3000/editor/stable/generic/latest
+```
+
+Make sure your proxy forwards `Authorization` and your updater preserves the header for the server asset URL. A `503` with `auth` points to upstream repository access instead. See [authentication](/docs/security).
+
+## Electron differential downloads fail
+
+First fetch the platform YAML and verify it references files uploaded to that release. Keep old blockmaps available and set `useMultipleRangeRequest: false` in the generic provider configuration.
+
+Test a returned installer URL through the same proxy your client uses:
+
+```sh
+curl -D - -H 'Range: bytes=0-1023' "$ASSET_URL" -o first-kib.bin
+```
+
+Expect `206` and `Content-Range` for a valid range. If the response is a redirect, repeat with `curl -L`. If the proxy changes it to a full `200`, inspect its range forwarding and buffering rules. Check the packaged client's logs too; full-download fallback, signing and installation are client behaviors.
+
+## Large installers time out
+
+The GitHub provider defaults to 30 seconds per upstream request. For streamed downloads, set `github({ repository: "owner/editor", timeout: 5 * 60 * 1000 })` and increase proxy/client timeouts as needed.
+
+Public redirect delivery avoids streaming the full file through Upserve. Private assets must stream. A deployment shutdown has a separate ten-second CLI drain deadline, so a long transfer may be interrupted during restarts.
+
+## SQLite cannot open its database
+
+Use Node.js 22.13 or newer; Node.js 24 is recommended. Create the parent directory before calling `sqliteCache()`, and ensure the process can write there. The CLI creates `UPSERVE_CACHE_DIR` for you when it manages the store.
+
+In Docker, the runtime user is UID/GID `10001`. Give that user write access to bind-mounted `/data`, or use the Compose named volume. Don't mount only the database file read-only; WAL needs writable adjacent files. See [SQLite setup](/docs/cache#persist-metadata-with-sqlite).
+
+## Packages cannot be found on npm
+
+During private initial development, publication may not have happened yet. Use the [checkout instructions](/docs/quick-start#run-from-a-repository-checkout). Don't replace the scoped package names with unrelated npm packages.

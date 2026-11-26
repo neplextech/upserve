@@ -1,29 +1,31 @@
 ---
-title: Getting started
-description: Practical guidance for getting started.
+title: Introduction
+description: Share cached release metadata with your desktop and mobile update clients.
 ---
 
-Upserve is a Neplex Technologies project that distributes existing application updates through a composable Hono application. It caches metadata; it does not build releases, sign applications or mirror binaries.
+Upserve is a self-hostable application update server. It sits between your release repository and your installed applications, so every update check doesn't need its own request to GitHub.
 
-Use Node.js 22.13 or newer (Node 24 recommended), or Bun for the embedded core. Install the integrations you need:
+You publish releases and signed artifacts as usual. Upserve finds the right release, caches its metadata and answers your application's update protocol. Public downloads redirect to GitHub by default. Private downloads pass through your server after you authorize the request.
 
-```sh
-pnpm add @neplex/upserve @neplex/upserve-github @neplex/upserve-generic
-```
+## When to use Upserve
 
-```ts
-import { createUpserve } from "@neplex/upserve";
-import { github } from "@neplex/upserve-github";
-import { generic } from "@neplex/upserve-generic";
+Use Upserve when you want a stable update endpoint, shared caching or one place to manage release channels across several applications. You can run it as a standalone service or add its Hono application to a server you already have.
 
-export const updates = createUpserve({
-  apps: {
-    editor: {
-      provider: github({ repository: "example/editor" }),
-      adapters: [generic()],
-    },
-  },
-});
-```
+It works with:
 
-Check `/editor/stable/generic/latest`. A missing release returns 204. Replace the example repository with your own. See the runnable workspace playground and `examples/` for local demonstrations.
+- **Tauri v2**, using your existing updater manifests and signatures.
+- **electron-builder and electron-updater**, using the generic provider feed.
+- **Android APKs**, using an Upserve JSON manifest and your own update client.
+- **Custom applications**, using the generic JSON API or an adapter you write.
+
+Upserve doesn't build your app, sign it or generate binary patches. Your release pipeline and updater remain responsible for those tasks. It caches update metadata, not installer binaries.
+
+## Start here
+
+Follow the [quick start](/docs/quick-start) to run a server and make your first update request. You'll need Node.js 22.13 or newer and a GitHub repository with a published release. Node.js 24 is recommended for the standalone service and SQLite cache.
+
+Already have an updater? Start with [Tauri](/docs/tauri), [Electron](/docs/electron), [Android](/docs/android) or [custom applications](/docs/generic). Each guide includes the server setup and the client endpoint.
+
+## A note about availability
+
+The installation commands in these guides use the intended public package names. During initial private development, the packages might not be on npm yet. If installation returns a package-not-found error, use the [repository checkout instructions](/docs/quick-start#run-from-a-repository-checkout).

@@ -1,0 +1,84 @@
+---
+title: Custom adapters
+description: Add and test a small update protocol while reusing release resolution and caching.
+---
+
+An adapter defines the routes and responses your updater expects. Use one when the generic API doesn't fit your client. It can work with GitHub or any custom provider without knowing where the releases came from.
+
+Upserve supplies application-scoped release lookup, manifest loading and asset delivery. Your adapter validates its protocol and decides what response represents an applicable update.
+
+## 1. Define a route
+
+Install `@neplex/upserve`. This adapter returns a small version response at `/editor/stable/custom/version`:
+
+```ts title="version-adapter.ts"
+import { defineAdapter } from "@neplex/upserve";
+
+export function versionAdapter() {
+  return defineAdapter({
+    name: "custom-version",
+
+    register(router, services) {
+      router.get("/custom/version", async (context) => {
+        const channel = context.req.param("channel")!;
+        const release = await services.latest(channel);
+
+        if (!release) return context.body(null, 204);
+
+        return context.json({ version: release.version, notes: release.notes });
+      });
+    },
+  });
+}
+```
+
+Routes are relative to `/:application/:channel`. The outer router supplies `channel`, checks application access and adds metadata caching headers and ETags. Choose a path prefix that doesn't collide with another adapter.
+
+## 2. Register it
+
+Put `versionAdapter()` in your application's `adapters` array. It can sit beside `tauri()` or `generic()` if their paths don't overlap. The adapter name must also be unique within that application.
+
+## 3. Test the public endpoint
+
+Use `catalog-provider.ts` from the [provider guide](/docs/custom-providers). Install `vitest` as a development dependency, save all three files together and run `npx vitest run version-adapter.test.ts`:
+
+```ts title="version-adapter.test.ts"
+import { expect, it } from "vitest";
+import { createUpserve } from "@neplex/upserve";
+import { catalogProvider } from "./catalog-provider.js";
+import { versionAdapter } from "./version-adapter.js";
+
+it("answers in the custom protocol", async () => {
+  const updates = createUpserve({
+    apps: {
+      editor: { provider: catalogProvider(), adapters: [versionAdapter()] },
+    },
+  });
+
+  const response = await updates.request("/editor/stable/custom/version");
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    version: "1.2.0",
+    notes: "Fixes startup on older systems.",
+  });
+});
+```
+
+No live source or HTTP listener is needed for this test.
+
+## 4. Add manifests and downloads
+
+Use `services.releases(channel)` when you need the full ordered history. Use `services.manifest(release, "update.json", parse)` to read a **known asset** and validate it before it is cached. The parser receives text, must throw on invalid protocol data, and runs again on cache hits.
+
+Check the manifest version, required platforms, signatures and referenced assets before returning an offer. A valid release list alone doesn't mean a protocol manifest is complete. Don't alter cryptographic signatures or checksums.
+
+For a download URL in JSON, call `services.assetUrl(context, release, asset)`. For a download route of your own, return `services.deliver(context.req.raw, release, asset)`. That service applies configured redirects or streaming, including private delivery. Use `GET` and `HEAD` routes if your protocol needs both.
+
+## Common mistakes
+
+Don't call GitHub directly from each route. Use the supplied services so your protocol shares caching and refresh coordination. Don't add a client-controlled force-refresh option or expose another application's configuration.
+
+Return `204` when your protocol has no applicable update. Throw an `UpserveError` for invalid data rather than presenting an incomplete release. Add tests for unsupported platforms, current versions, missing assets, authentication and mounted paths before shipping.
+
+See [AdapterServices](/docs/api#adapterservices) for method signatures and [error responses](/docs/errors) for the default error mapping.
