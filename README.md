@@ -1,6 +1,6 @@
 # Upserve
 
-A self-hostable application update server by Neplex Technologies. Upserve connects release providers to Tauri, electron-updater, Android and custom clients through an embeddable Hono application. MIT licensed.
+A self-hostable application update server. Upserve connects release providers to Tauri, electron-updater, Android and custom clients through an embeddable Hono application. MIT licensed.
 
 ```ts
 import { createUpserve } from "@neplex/upserve";
