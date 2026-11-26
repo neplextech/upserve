@@ -6,7 +6,7 @@ Set `NEXT_PUBLIC_SITE_URL` to the site's full public HTTPS URL (including a proj
 
 The build generates a 1200 × 630 PNG for every documentation route and the landing page, plus a shared SVG favicon. Regenerate them separately with `pnpm --filter @upserve/docs social:generate`. Route titles come from MDX frontmatter; the routing mark and palette come from `lib/brand.mjs`.
 
-Inter and JetBrains Mono are self-hosted through Fontsource. Framework silhouettes are vendored locally; attribution is in `public/brands/NOTICE.md`. The static hero pairs an illustrative application update prompt with fields from the generic update protocol. The cache demonstration uses simulated traffic and performs no upstream requests.
+Inter and JetBrains Mono are self-hosted through Fontsource. Framework silhouettes are vendored locally; attribution is in `public/brands/NOTICE.md`. The hero presents type-checked server and configuration examples for Tauri, Electron, Hono and standalone deployments. The cache demonstration uses simulated traffic and performs no upstream requests.
 
 ## GitHub Pages
 

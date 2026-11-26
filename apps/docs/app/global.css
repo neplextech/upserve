@@ -186,55 +186,6 @@ body {
 .skip-link:focus {
   transform: none;
 }
-
-.hero {
-  display: grid;
-  grid-template-columns: 0.95fr 1.05fr;
-  align-items: center;
-  gap: 55px;
-  padding-block: 76px 68px;
-}
-.hero-copy {
-  min-width: 0;
-}
-.project-label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-bottom: 27px;
-}
-.project-rule {
-  width: 20px;
-  height: 2px;
-  background: var(--accent-solid);
-}
-.hero h1 {
-  font-size: clamp(2.7rem, 4.05vw, 3.8rem);
-  font-weight: 580;
-  line-height: 1.13;
-  letter-spacing: -0.025em;
-  max-width: 610px;
-  margin: 0 0 25px;
-  text-wrap: balance;
-}
-.hero h1 span {
-  color: var(--muted);
-}
-.hero-description {
-  color: var(--muted);
-  font-size: 1.075rem;
-  line-height: 1.8;
-  max-width: 490px;
-  margin: 0;
-}
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 28px 0 25px;
-}
 .button {
   min-height: 44px;
   padding: 12px 20px;
@@ -318,19 +269,6 @@ body {
   margin-top: 9px;
   min-height: 17px;
 }
-.hero-properties {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  margin-top: 25px;
-}
-.hero-properties span + span::before {
-  content: "/";
-  color: var(--strong-line);
-  margin-right: 15px;
-}
 .demo-header {
   height: 44px;
   display: flex;
@@ -347,293 +285,6 @@ body {
   color: var(--muted);
 }
 
-/* One client update, shown from its human and HTTP sides. */
-.update-story {
-  min-width: 0;
-  margin: 0;
-  padding: 10px 0 0 30px;
-}
-
-.update-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  padding: 26px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px -18px #00000045;
-}
-
-.example-app-icon {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 55px;
-  height: 59px;
-  flex-shrink: 0;
-  border-radius: 11px;
-  background: var(--ink);
-  color: var(--surface);
-  font: 550 2rem var(--font-mono);
-  line-height: 1;
-}
-
-.example-app-icon span {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  width: 9px;
-  height: 3px;
-  background: var(--accent-solid);
-}
-
-.update-notice-content {
-  min-width: 0;
-  flex: 1;
-}
-
-.example-app-name {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 14px;
-}
-
-.example-app-name span {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 0.7rem;
-}
-
-.landing .update-notice h2 {
-  font-size: 1.28rem;
-  font-weight: 580;
-  line-height: 1.35;
-  letter-spacing: -0.015em;
-  margin: 0 0 9px;
-  text-wrap: initial;
-}
-
-.update-notice p {
-  font-size: 0.8rem;
-  line-height: 1.8;
-  color: var(--muted);
-  margin: 0;
-}
-
-.installed-version {
-  white-space: nowrap;
-}
-
-.update-notice p strong {
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.example-update-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 19px;
-  margin-top: 22px;
-  font-size: 0.69rem;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.example-update-actions span:first-child {
-  color: var(--muted);
-}
-
-.example-update-actions span:last-child {
-  padding: 7px 11px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--surface);
-}
-
-.update-exchange {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid var(--strong-line);
-}
-
-.exchange-request {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: 10px;
-  align-items: baseline;
-  font: 0.78rem/1.8 var(--font-mono);
-  margin-bottom: 20px;
-}
-
-.exchange-request > span {
-  color: var(--accent);
-  font-weight: 550;
-}
-
-.exchange-request code {
-  color: var(--ink);
-  font: inherit;
-}
-
-.exchange-response {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  font: 0.7rem/1.6 var(--font-mono);
-  margin-bottom: 9px;
-}
-
-.exchange-response > span:first-child {
-  color: var(--success);
-}
-
-.exchange-response > span:last-child {
-  color: var(--muted);
-}
-
-.update-story .highlighted-code pre {
-  padding: 0;
-  font-size: 0.82rem;
-  line-height: 1.7;
-  background: transparent;
-}
-
-.update-story figcaption {
-  color: var(--muted);
-  font-size: 0.65rem;
-  margin-top: 17px;
-}
-
-@media (max-width: 1180px) {
-  .update-story {
-    padding-left: 0;
-  }
-  .update-notice {
-    padding: 21px;
-    gap: 16px;
-  }
-  .example-update-actions {
-    gap: 12px;
-  }
-}
-
-@media (max-width: 960px) {
-  .update-story {
-    width: min(100%, 640px);
-    padding: 0;
-  }
-  .update-notice {
-    padding: 27px;
-    gap: 22px;
-  }
-}
-
-@media (max-width: 600px) {
-  .update-notice {
-    padding: 21px 18px;
-    gap: 15px;
-  }
-  .example-app-icon {
-    width: 43px;
-    height: 47px;
-    border-radius: 9px;
-    font-size: 1.6rem;
-  }
-  .example-app-icon span {
-    right: 8px;
-    bottom: 8px;
-    width: 7px;
-  }
-  .example-app-name {
-    font-size: 0.72rem;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .example-app-name span {
-    font-size: 0.62rem;
-  }
-  .landing .update-notice h2 {
-    font-size: 1.05rem;
-  }
-  .update-notice p {
-    font-size: 0.73rem;
-  }
-  .example-update-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 0.61rem;
-    margin-top: 17px;
-  }
-  .example-update-actions span:last-child {
-    padding: 6px 9px;
-  }
-  .update-exchange {
-    margin-top: 24px;
-    padding-top: 18px;
-  }
-  .exchange-request {
-    font-size: 0.72rem;
-    grid-template-columns: 28px 1fr;
-    gap: 8px;
-    margin-bottom: 17px;
-  }
-  .exchange-response {
-    font-size: 0.68rem;
-  }
-  .update-story .highlighted-code pre {
-    font-size: 0.76rem;
-    line-height: 1.75;
-  }
-  .update-story figcaption {
-    font-size: 0.61rem;
-    line-height: 1.7;
-    margin-top: 15px;
-  }
-}
-
-.compatibility-strip {
-  border-block: 1px solid var(--line);
-}
-.compatibility-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 22px;
-  min-height: 81px;
-}
-.compatibility-inner > span {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-.compatibility-inner > div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.compatibility-inner strong {
-  font-size: 0.95rem;
-  font-weight: 520;
-}
-.compatibility-inner svg {
-  width: 22px;
-  height: 22px;
-}
-.compatibility-inner .brand-icon {
-  width: 23px;
-  height: 23px;
-}
-.compatibility-inner > a {
-  font-size: 0.75rem;
-  color: var(--muted);
-  border-bottom: 1px solid var(--strong-line);
-  padding-bottom: 3px;
-}
 .section-block {
   padding-block: 82px;
 }
@@ -690,36 +341,6 @@ body {
 .integration-item:hover {
   background: var(--surface-soft);
 }
-.integration-icon {
-  height: 39px;
-  margin-bottom: 20px;
-}
-.integration-icon > .brand-icon,
-.integration-icon > svg {
-  width: 35px;
-  height: 35px;
-}
-.integration-tauri .integration-icon {
-  color: #a96e06;
-}
-.dark .integration-tauri .integration-icon {
-  color: #efc468;
-}
-.integration-electron .integration-icon {
-  color: #327b91;
-}
-.dark .integration-electron .integration-icon {
-  color: #a2d4e1;
-}
-.integration-android .integration-icon {
-  color: #31805c;
-}
-.dark .integration-android .integration-icon {
-  color: #8bcaaa;
-}
-.integration-custom .integration-icon {
-  color: var(--muted);
-}
 .integration-item h3 {
   font-size: 1.15rem;
   font-weight: 580;
@@ -748,66 +369,6 @@ body {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-
-.code-section {
-  border-block: 1px solid var(--line);
-  background: var(--surface-soft);
-}
-.code-section-inner {
-  display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  align-items: center;
-  gap: 90px;
-}
-.section-symbol {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--strong-line);
-  background: var(--surface);
-  border-radius: 6px;
-  color: var(--accent);
-  margin-bottom: 25px;
-}
-.section-symbol .brand-icon {
-  width: 27px;
-  height: 27px;
-}
-.code-copy h2 {
-  line-height: 1.23;
-}
-.code-copy h2 span {
-  color: var(--muted);
-}
-.code-copy > p {
-  font-size: 0.95rem;
-  line-height: 1.8;
-  color: var(--muted);
-  max-width: 420px;
-  margin-bottom: 24px;
-}
-.capability-list {
-  padding: 0;
-  list-style: none;
-  margin: 0 0 28px;
-}
-.capability-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8rem;
-  margin-block: 13px;
-}
-.list-check {
-  width: 13px;
-  height: 7px;
-  border-left: 1.5px solid var(--accent);
-  border-bottom: 1.5px solid var(--accent);
-  transform: rotate(-45deg);
-  margin-right: 3px;
-}
-.code-example,
 .extension-code {
   min-width: 0;
   border: 1px solid var(--strong-line);
@@ -816,7 +377,6 @@ body {
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-.code-tabs,
 .file-heading {
   height: 46px;
   display: flex;
@@ -826,17 +386,6 @@ body {
   padding-inline: 16px;
   font-size: 0.75rem;
 }
-.code-tabs button {
-  padding: 15px 9px;
-  color: var(--muted);
-  border-bottom: 1px solid transparent;
-  white-space: nowrap;
-}
-.code-tabs button[aria-selected="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
-}
-.code-tabs > span,
 .file-heading > span:last-child {
   color: var(--muted);
   font: 0.6rem var(--font-mono);
@@ -1181,28 +730,10 @@ body {
   color: var(--muted);
   margin: 0;
 }
-
-@media (min-width: 1600px) {
-  .hero {
-    padding-block: 90px;
-    gap: 85px;
-  }
-}
 @media (max-width: 1180px) {
   .site-container {
     width: calc(100% - 64px);
   }
-  .hero {
-    gap: 32px;
-    padding-block: 60px;
-  }
-  .hero h1 {
-    font-size: 3rem;
-  }
-  .compatibility-inner > a {
-    display: none;
-  }
-  .code-section-inner,
   .cache-section,
   .extension-layout,
   .runtime-section {
@@ -1219,31 +750,6 @@ body {
   }
 }
 @media (max-width: 960px) {
-  .hero {
-    grid-template-columns: 1fr;
-    gap: 42px;
-    padding-block: 50px;
-  }
-  .hero-copy {
-    max-width: 640px;
-  }
-  .hero h1 {
-    max-width: 600px;
-    font-size: 3.5rem;
-  }
-  .hero-description {
-    max-width: 570px;
-  }
-  .compatibility-inner {
-    flex-wrap: wrap;
-    justify-content: center;
-    padding-block: 22px;
-    gap: 22px 30px;
-  }
-  .compatibility-inner > span {
-    width: 100%;
-    text-align: center;
-  }
   .integration-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1268,30 +774,11 @@ body {
     flex-direction: column;
     gap: 18px;
   }
-  .code-section-inner,
   .cache-section,
   .extension-layout,
   .runtime-section {
     gap: 32px;
     grid-template-columns: 1fr;
-  }
-  .code-copy {
-    max-width: 600px;
-  }
-  .code-copy h2 br {
-    display: none;
-  }
-  .code-copy h2 br::after {
-    content: " ";
-  }
-  .code-copy h2 span::before {
-    content: " ";
-  }
-  .code-copy > p {
-    max-width: 580px;
-  }
-  .code-example {
-    width: 100%;
   }
   .cache-copy h2 {
     max-width: 620px;
@@ -1377,28 +864,6 @@ body {
     width: 27px;
     height: 32px;
   }
-  .hero {
-    padding-block: 39px 35px;
-    gap: 32px;
-  }
-  .project-label {
-    font-size: 0.67rem;
-    margin-bottom: 21px;
-  }
-  .hero h1 {
-    font-size: clamp(2.2rem, 8.6vw, 3rem);
-    max-width: 430px;
-    margin-bottom: 20px;
-    line-height: 1.15;
-  }
-  .hero-description {
-    font-size: 0.96rem;
-    line-height: 1.8;
-  }
-  .hero-actions {
-    margin: 23px 0 21px;
-    gap: 10px;
-  }
   .button {
     padding-inline: 16px;
     font-size: 0.8rem;
@@ -1414,44 +879,12 @@ body {
     font-size: 0.65rem;
     line-height: 1.7;
   }
-  .hero-properties {
-    margin-top: 17px;
-    font-size: 0.7rem;
-  }
   .demo-header {
     padding-inline: 13px;
     font-size: 0.68rem;
   }
   .diagram-mode {
     font-size: 0.55rem;
-  }
-  .compatibility-inner {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 18px 25px;
-    padding-block: 23px;
-  }
-
-  .compatibility-inner > span {
-    grid-column: 1 / -1;
-  }
-
-  .compatibility-inner > div {
-    justify-self: center;
-  }
-  .compatibility-inner > span {
-    font-size: 0.72rem;
-  }
-  .compatibility-inner strong {
-    font-size: 0.73rem;
-  }
-  .compatibility-inner > div {
-    gap: 6px;
-  }
-  .compatibility-inner .brand-icon,
-  .compatibility-inner svg {
-    width: 20px;
-    height: 20px;
   }
   .section-block {
     padding-block: 44px;
@@ -1475,15 +908,6 @@ body {
   .integration-item {
     padding: 21px 16px 20px;
   }
-  .integration-icon {
-    margin-bottom: 14px;
-    height: 30px;
-  }
-  .integration-icon > .brand-icon,
-  .integration-icon > svg {
-    width: 28px;
-    height: 28px;
-  }
   .integration-item h3 {
     font-size: 1rem;
   }
@@ -1501,28 +925,9 @@ body {
     font-size: 0.47rem;
     line-height: 1.8;
   }
-  .section-symbol {
-    margin-bottom: 20px;
-  }
-  .code-copy > p,
   .cache-copy > p,
   .runtime-title p {
     font-size: 0.88rem;
-  }
-  .code-copy h2 {
-    max-width: 280px;
-  }
-  .capability-list li {
-    font-size: 0.73rem;
-    line-height: 1.6;
-  }
-  .code-tabs {
-    gap: 2px;
-    padding-inline: 9px;
-    font-size: 0.68rem;
-  }
-  .code-tabs > span {
-    display: none;
   }
   .highlighted-code pre {
     padding: 20px 15px;
@@ -1677,44 +1082,491 @@ body {
   .nav-github {
     display: none;
   }
+}
 
+/* The integration code is the hero's focal point. */
+.hero {
+  padding-block: 60px 42px;
+}
+
+.hero-copy {
+  text-align: center;
+  max-width: 920px;
+  margin-inline: auto;
+}
+
+.hero h1 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 570;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0 0 23px;
+  text-wrap: balance;
+}
+
+.hero h1 span {
+  display: block;
+  color: var(--accent);
+}
+
+.hero-description {
+  max-width: 660px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1.075rem;
+  line-height: 1.75;
+  text-wrap: balance;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-block: 25px 30px;
+}
+
+.hero-integration {
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.hero-integration .installation {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hero-integration .install-command {
+  padding: 0;
+  gap: 8px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.hero-integration .install-command code {
+  text-align: left;
+  font-size: 0.69rem;
+  padding-block: 3px;
+  scrollbar-width: thin;
+}
+
+.hero-integration .install-feedback {
+  text-align: left;
+  margin-top: 0;
+  font-size: 0.65rem;
+  min-height: 0;
+}
+
+.example-install {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 11px 28px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+  font: 0.69rem/1.8 var(--font-mono);
+}
+
+.example-install > span {
+  color: var(--muted);
+  padding-top: 5px;
+}
+
+.example-install .terminal-prompt {
+  display: none;
+}
+
+.integration-example {
+  background: var(--surface);
+  border: 1px solid var(--strong-line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.example-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 22px 20px;
+  border-bottom: 1px solid var(--line);
+  gap: 20px;
+}
+
+.example-tabs {
+  display: flex;
+  gap: 22px;
+  min-width: 0;
+}
+
+.example-tabs button {
+  padding: 17px 3px 15px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.example-tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent-solid);
+}
+
+.example-tabs button:hover {
+  color: var(--ink);
+}
+
+.copy-example {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  min-height: 36px;
+}
+
+.copy-example svg {
+  width: 17px;
+  height: 17px;
+}
+
+.example-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 17px 28px 0;
+  font: 0.67rem var(--font-mono);
+  color: var(--muted);
+}
+
+.integration-example .highlighted-code pre {
+  font-size: 0.82rem;
+  line-height: 1.75;
+  padding: 17px 12px 24px;
+}
+
+.example-run {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 13px 28px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+  font: 0.69rem/1.8 var(--font-mono);
+}
+
+.example-run > span {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.example-run code {
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.example-note {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 22px;
+  padding: 14px 28px;
+  border-top: 1px solid var(--line);
+  font-size: 0.72rem;
+  line-height: 1.7;
+}
+
+.example-note p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.example-note a {
+  white-space: nowrap;
+}
+
+.example-help {
+  margin: 12px 0 0;
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.hero-frameworks {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin: 35px auto 0;
+  font-size: 0.8rem;
+}
+
+.hero-frameworks > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.hero-frameworks a {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.hero-frameworks .brand-icon,
+.hero-frameworks svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* Integration details form one typographic row; logos live in the hero. */
+.integration-grid {
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+}
+
+.integration-item,
+.integration-item:hover {
+  background: transparent;
+}
+
+.integrations-section {
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 960px) {
+  .hero {
+    padding-top: 48px;
+  }
+  .hero h1 {
+    font-size: 3.4rem;
+  }
+  .hero-frameworks {
+    gap: 22px;
+  }
+  .example-tabs {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .hero {
+    padding-block: 38px 30px;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 8.8vw, 3rem);
+    line-height: 1.14;
+    margin-bottom: 18px;
+  }
+  .hero-description {
+    font-size: 0.94rem;
+    line-height: 1.8;
+  }
   .hero-actions {
+    margin-block: 21px 20px;
+    gap: 10px;
+  }
+  .hero-actions .button {
+    padding-inline: 15px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .hero-integration .install-command {
+    padding-inline: 0;
     gap: 8px;
   }
-
-  .hero-actions .button {
-    white-space: nowrap;
-    padding-inline: 12px;
+  .hero-integration .install-command code {
+    text-align: left;
+    font-size: 0.68rem;
+  }
+  .hero-integration .install-feedback {
+    font-size: 0.6rem;
+  }
+  .example-bar {
+    padding-inline: 10px;
+    gap: 8px;
+  }
+  .example-tabs {
+    flex: 1;
+    justify-content: space-between;
+    gap: 7px;
+  }
+  .example-tabs button {
     font-size: 0.75rem;
+    padding: 15px 0 13px;
+  }
+  .copy-example span {
+    display: none;
+  }
+  .copy-example {
+    min-width: 24px;
+    justify-content: center;
+  }
+  .example-file {
+    font-size: 0.59rem;
+    padding: 15px 16px 0;
+  }
+  .integration-example .highlighted-code pre {
+    font-size: 0.7rem;
+    line-height: 1.85;
+    padding: 15px 0 20px;
+  }
+  .example-run {
+    font-size: 0.59rem;
+    padding: 11px 16px;
+    gap: 11px;
+  }
+  .example-note {
+    padding: 12px 16px;
+    gap: 12px;
+    font-size: 0.66rem;
+    flex-direction: column;
+  }
+  .example-help {
+    font-size: 0.63rem;
+    padding-inline: 8px;
+  }
+  .hero-frameworks {
+    gap: 18px 23px;
+    margin-top: 27px;
+    font-size: 0.74rem;
+  }
+  .hero-frameworks > span {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 0.68rem;
+  }
+  .hero-frameworks .brand-icon,
+  .hero-frameworks svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .example-install {
+    padding: 11px 16px;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    font-size: 0.59rem;
+  }
+
+  .example-install .install-command {
+    padding: 0;
+  }
+
+  .example-install .install-command code {
+    font-size: 0.7rem;
+  }
+}
+
+/* Framework marks use their own palette in both integration presentations. */
+.hero-frameworks .brand-tauri,
+.integration-icon .brand-tauri {
+  color: #b77b08;
+}
+
+.hero-frameworks .brand-electron,
+.integration-icon .brand-electron {
+  color: #387e92;
+}
+
+.hero-frameworks .brand-android,
+.integration-icon .brand-android {
+  color: #258359;
+}
+
+.dark .hero-frameworks .brand-tauri,
+.dark .integration-icon .brand-tauri {
+  color: #ffc131;
+}
+
+.dark .hero-frameworks .brand-electron,
+.dark .integration-icon .brand-electron {
+  color: #9feaf9;
+}
+
+.dark .hero-frameworks .brand-android,
+.dark .integration-icon .brand-android {
+  color: #3ddc84;
+}
+
+.hero-frameworks svg,
+.integration-icon > svg {
+  color: var(--accent);
+}
+
+.integration-icon {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  margin-bottom: 20px;
+}
+
+.integration-icon > .brand-icon,
+.integration-icon > svg {
+  width: 32px;
+  height: 32px;
+}
+
+@media (max-width: 600px) {
+  .integration-icon {
+    height: 32px;
+    margin-bottom: 15px;
+  }
+  .integration-icon > .brand-icon,
+  .integration-icon > svg {
+    width: 27px;
+    height: 27px;
   }
 }
 
 @media (max-width: 359px) {
-  .update-notice {
+  .hero h1 {
+    font-size: 1.9rem;
+  }
+  .hero-actions .button {
+    font-size: 0.75rem;
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .hero-frameworks {
     display: grid;
-    grid-template-columns: 43px minmax(0, 1fr);
-    column-gap: 15px;
-    row-gap: 0;
+    grid-template-columns: repeat(2, max-content);
+    gap: 18px 30px;
   }
 
-  .update-notice-content {
-    display: contents;
-  }
-
-  .example-app-icon {
-    grid-column: 1;
-    grid-row: 1 / 4;
-  }
-
-  .example-app-name,
-  .update-notice h2,
-  .update-notice p {
-    grid-column: 2;
-  }
-
-  .example-update-actions {
+  .hero-frameworks > span {
     grid-column: 1 / -1;
-    justify-content: flex-end;
-    font-size: 0.65rem;
   }
+}
+
+.runtime-options .brand-nodedotjs {
+  color: #438a35;
+}
+
+.runtime-options .brand-bun {
+  color: #95755a;
+}
+
+.runtime-options .brand-docker {
+  color: #6172ff;
+  width: 44px;
+}
+
+.dark .runtime-options .brand-nodedotjs {
+  color: #70b85b;
+}
+
+.dark .runtime-options .brand-bun {
+  color: #f9f1e1;
 }

@@ -1,19 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { CopyIcon } from "./identity";
 
-const install = "pnpm add @neplex/upserve";
-
-/** Copy the core install command and announce success or a manual fallback. */
-export function InstallCommand() {
+/** Copy the dependencies for the selected integration and announce the outcome. */
+export function InstallCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(install);
+      await navigator.clipboard.writeText(command);
       setCopied(true);
       setFailed(false);
     } catch {
@@ -27,7 +24,7 @@ export function InstallCommand() {
         <span className="terminal-prompt" aria-hidden="true">
           $
         </span>
-        <code>{install}</code>
+        <code>{command}</code>
         <button
           type="button"
           onClick={copy}
@@ -37,11 +34,7 @@ export function InstallCommand() {
         </button>
       </div>
       <span className="install-feedback" role="status">
-        {failed
-          ? "Select the command to copy it manually."
-          : copied
-            ? "Copied to clipboard."
-            : "Then add a provider and your updater’s adapter."}
+        {failed ? "Select the command to copy it manually." : copied ? "Copied to clipboard." : ""}
       </span>
     </div>
   );
@@ -129,70 +122,6 @@ export function CacheDemo() {
         </button>
       </div>
       <p className="demo-caption">Simulated requests in one process. No upstream calls are made.</p>
-    </div>
-  );
-}
-
-/** Switch build-time highlighted examples with keyboard-accessible tabs. */
-export function CodeTabs({ embedded, standalone }: { embedded: ReactNode; standalone: ReactNode }) {
-  const [selected, setSelected] = useState<"embedded" | "standalone">("embedded");
-
-  return (
-    <div className="code-example">
-      <div role="tablist" aria-label="Deployment example" className="code-tabs">
-        {(["embedded", "standalone"] as const).map((tab) => (
-          <button
-            type="button"
-            role="tab"
-            key={tab}
-            id={`tab-${tab}`}
-            aria-selected={selected === tab}
-            aria-controls={`panel-${tab}`}
-            onClick={() => setSelected(tab)}
-            onKeyDown={(event) => {
-              if (
-                event.key === "ArrowLeft" ||
-                event.key === "ArrowRight" ||
-                event.key === "Home" ||
-                event.key === "End"
-              ) {
-                event.preventDefault();
-
-                const next =
-                  event.key === "Home"
-                    ? "embedded"
-                    : event.key === "End"
-                      ? "standalone"
-                      : selected === "embedded"
-                        ? "standalone"
-                        : "embedded";
-                setSelected(next);
-                document.getElementById(`tab-${next}`)?.focus();
-              }
-            }}
-            tabIndex={selected === tab ? 0 : -1}
-          >
-            {tab === "embedded" ? "Embed in Hono" : "Run standalone"}
-          </button>
-        ))}
-        <span>TypeScript</span>
-      </div>
-      <div
-        id="panel-embedded"
-        role="tabpanel"
-        aria-labelledby="tab-embedded"
-        hidden={selected !== "embedded"}
-      >
-        {embedded}
-      </div>
-      <div
-        id="panel-standalone"
-        role="tabpanel"
-        aria-labelledby="tab-standalone"
-        hidden={selected !== "standalone"}
-      >
-        {standalone}
-      </div>
     </div>
   );
 }

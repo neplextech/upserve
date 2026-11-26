@@ -25,7 +25,7 @@ export function BrandIcon({ name, className = "" }: { name: BrandName; className
   return (
     <span
       aria-hidden="true"
-      className={`brand-icon ${className}`}
+      className={`brand-icon brand-${name} ${className}`}
       style={{
         maskImage: `url(${withBasePath(`/brands/${name}.svg`)})`,
         WebkitMaskImage: `url(${withBasePath(`/brands/${name}.svg`)})`,

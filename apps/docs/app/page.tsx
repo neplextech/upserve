@@ -1,46 +1,10 @@
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
-import { UpdateStory } from "../components/update-story";
+import { IntegrationExample } from "../components/integration-example";
+import { integrationExamples } from "../lib/integration-examples";
 import { BrandIcon, CodeIcon, UpserveMark } from "../components/identity";
-import { CacheDemo, CodeTabs, InstallCommand } from "../components/interactions";
+import { CacheDemo } from "../components/interactions";
 import { Code } from "../components/code";
-
-const embedded = `import { Hono } from 'hono'
-import { createUpserve } from '@neplex/upserve'
-import { github } from '@neplex/upserve-github'
-import { tauri } from '@neplex/upserve-tauri'
-
-const updates = createUpserve({
-  apps: {
-    editor: {
-      provider: github({ repository: 'acme/editor' }),
-      adapters: [tauri()],
-    },
-  },
-})
-
-const app = new Hono()
-
-app.route('/updates', updates)
-
-export default app`;
-
-const standalone = `// upserve.config.ts
-import { defineConfig } from '@neplex/upserve'
-import { github } from '@neplex/upserve-github'
-import { tauri } from '@neplex/upserve-tauri'
-
-export default defineConfig({
-  apps: {
-    editor: {
-      provider: github({ repository: 'acme/editor' }),
-      adapters: [tauri()],
-    },
-  },
-})
-
-// Start with the Upserve CLI:
-// npx @neplex/upserve-cli start`;
 
 const extension = `import { defineAdapter } from '@neplex/upserve'
 
@@ -120,56 +84,49 @@ export default function Home() {
       <main id="main-content">
         <section className="hero site-container" aria-labelledby="hero-heading">
           <div className="hero-copy">
-            <div className="project-label">
-              <span className="project-rule" /> Open source by Neplex Technologies
-            </div>
             <h1 id="hero-heading">
               Serve updates for <span>desktop &amp; mobile.</span>
             </h1>
             <p className="hero-description">
-              An extensible update server that connects your releases to your applications. Cache
-              metadata, keep your updater’s protocol, and run it on your infrastructure.
+              An extensible, self-hostable update server for Tauri, Electron, Android and custom
+              applications.
             </p>
             <div className="hero-actions">
               <Link href="/docs/" className="button button-primary">
-                Get started
+                Documentation
               </Link>
               <a className="button button-secondary" href="https://github.com/neplextech/upserve">
                 <BrandIcon name="github" />
                 View on GitHub
               </a>
             </div>
-            <InstallCommand />
-            <div className="hero-properties">
-              <span>Self-hostable</span>
-              <span>TypeScript</span>
-              <span>MIT licensed</span>
-            </div>
           </div>
-          <UpdateStory />
-        </section>
-        <div className="compatibility-strip">
-          <div className="site-container compatibility-inner">
-            <span>Built around your updater</span>
-            <div>
+          <IntegrationExample
+            examples={integrationExamples.map((example) => ({
+              ...example,
+              content: <Code code={example.code} />,
+            }))}
+          />
+          <div className="hero-frameworks" aria-label="Supported update clients">
+            <span>Keep your update client</span>
+            <Link href="/docs/integrations/#tauri-v2">
               <BrandIcon name="tauri" />
-              <strong>Tauri</strong>
-            </div>
-            <div>
+              Tauri
+            </Link>
+            <Link href="/docs/integrations/#electron-builder--electron-updater">
               <BrandIcon name="electron" />
-              <strong>Electron</strong>
-            </div>
-            <div>
+              Electron
+            </Link>
+            <Link href="/docs/integrations/#direct-android-apks">
               <BrandIcon name="android" />
-              <strong>Android</strong>
-            </div>
-            <div>
+              Android
+            </Link>
+            <Link href="/docs/generic/">
               <CodeIcon />
-              <strong>Custom clients</strong>
-            </div>
-            <Link href="/docs/integrations/">Protocol compatibility</Link>
+              Custom clients
+            </Link>
           </div>
-        </div>
+        </section>
         <section
           className="site-container integrations-section section-block"
           id="integrations"
@@ -207,42 +164,6 @@ export default function Home() {
                 <code>{item.endpoint}</code>
               </Link>
             ))}
-          </div>
-        </section>
-        <section className="code-section section-block" aria-labelledby="embed-heading">
-          <div className="site-container code-section-inner">
-            <div className="code-copy">
-              <div className="section-symbol">
-                <BrandIcon name="hono" />
-              </div>
-              <h2 id="embed-heading">
-                A Hono app.
-                <br />A standalone server.
-                <br />
-                <span>Your choice.</span>
-              </h2>
-              <p>
-                Mount Upserve alongside your existing routes. Or load a typed configuration and let
-                the CLI handle the HTTP server.
-              </p>
-              <ul className="capability-list">
-                <li>
-                  <span className="list-check" />A genuine, composable Hono application
-                </li>
-                <li>
-                  <span className="list-check" />
-                  Multiple applications and release channels
-                </li>
-                <li>
-                  <span className="list-check" />
-                  No database required to get started
-                </li>
-              </ul>
-              <Link href="/docs/embedding/" className="text-link">
-                Explore embedding and deployment
-              </Link>
-            </div>
-            <CodeTabs embedded={<Code code={embedded} />} standalone={<Code code={standalone} />} />
           </div>
         </section>
         <section
@@ -409,7 +330,9 @@ export default function Home() {
             <UpserveMark />
             upserve
           </Link>
-          <span>A Neplex Technologies project.</span>
+          <span>
+            © {new Date().getFullYear()} <a href="https://neplextech.com">Neplex</a>
+          </span>
         </div>
         <nav aria-label="Footer navigation">
           <Link href="/docs/">Documentation</Link>
