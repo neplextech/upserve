@@ -1,0 +1,9 @@
+name: Feature request
+description: Describe a concrete update distribution need
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and proposed behavior
+    validations:
+      required: true

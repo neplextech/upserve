@@ -1,0 +1,10 @@
+services:
+  upserve:
+    build: .
+    ports: ["3000:3000"]
+    volumes:
+      - metadata:/data
+      - ./examples/upserve.config.ts:/config/upserve.config.ts:ro
+    restart: unless-stopped
+volumes:
+  metadata:

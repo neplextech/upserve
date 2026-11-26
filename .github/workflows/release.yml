@@ -1,0 +1,33 @@
+name: Release packages
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish previously bootstrapped packages after review
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: inputs.publish && vars.RELEASE_ENABLED == 'true'
+    environment: npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@latest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      # pnpm pack rewrites workspace:* dependencies. npm publish supplies OIDC.
+      - run: node scripts/publish.mjs

@@ -1,0 +1,14 @@
+name: Bug report
+description: Report a reproducible problem without credentials
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and expected behavior
+      description: Include versions, runtime, protocol and a minimal sanitized configuration.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Actual behavior and validation
