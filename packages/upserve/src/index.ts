@@ -11,6 +11,7 @@ export type {
   AppConfig,
   Asset,
   CacheEntry,
+  CacheFailure,
   CachePolicy,
   CacheStore,
   Provider,
@@ -21,6 +22,7 @@ export type {
 export { defineAdapter, defineCache, defineConfig, defineProvider } from "./contracts.js";
 export { memoryCache } from "./cache.js";
 export { UpserveError } from "./errors.js";
+export type { UpserveErrorCode } from "./errors.js";
 export { newer, validVersion, compareVersions, readText } from "./validation.js";
 
 /** A genuine Hono application with trusted programmatic refresh controls. */

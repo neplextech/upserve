@@ -1,5 +1,29 @@
-import type { CacheEntry, CacheStore, CachePolicy } from "./contracts.js";
-import { UpserveError } from "./errors.js";
+import type { CacheEntry, CacheFailure, CacheStore, CachePolicy } from "./contracts.js";
+import { errorCodes, UpserveError } from "./errors.js";
+
+/** Reduce a load failure to its persisted classification; no message or body is kept. */
+function classify(error: unknown): CacheFailure {
+  return error instanceof UpserveError ? error.code : "internal";
+}
+
+/**
+ * Recreate the failure that started a cooldown. Unknown or absent classifications,
+ * including entries written by earlier releases, keep the legacy rate_limit response.
+ */
+function cooldownError(entry: CacheEntry): Error {
+  if (entry.error === "internal") return new Error("Refresh failed during cooldown");
+
+  const code =
+    entry.error && (errorCodes as readonly string[]).includes(entry.error)
+      ? entry.error
+      : "rate_limit";
+
+  return new UpserveError(
+    code,
+    code === "rate_limit" ? "Refresh delayed" : "Refresh failed during cooldown",
+    entry.retryAt,
+  );
+}
 
 /** Bounded process-local LRU cache. Metadata only; binaries are never buffered here. */
 export function memoryCache(maxEntries = 1000): CacheStore {
@@ -66,7 +90,9 @@ export class Coordinator {
     if (!force && old && now < old.freshUntil) return old.value as T;
     if (old?.retryAt && now < old.retryAt) {
       if (now < old.staleUntil && old.value !== undefined) return old.value as T;
-      throw new UpserveError("rate_limit", "Refresh delayed", old.retryAt);
+
+      // Report the original classification without contacting the upstream again.
+      throw cooldownError(old);
     }
 
     let task = this.pending.get(key) as Promise<T> | undefined;
@@ -79,6 +105,8 @@ export class Coordinator {
             Array.isArray(value) && !value.length
               ? (policy.negativeTtl ?? 15_000)
               : (policy.ttl ?? 60_000);
+
+          // A complete entry replaces, and therefore clears, any persisted failure.
           await this.store.set(key, {
             value,
             freshUntil: this.now() + ttl,
@@ -89,20 +117,20 @@ export class Coordinator {
         } catch (error) {
           const retryAt =
             error instanceof UpserveError && error.retryAt ? error.retryAt : this.now() + 15_000;
+
+          const failure = classify(error);
+
           await this.store.set(
             key,
-            old && !(error instanceof UpserveError && error.code === "auth")
-              ? { ...old, retryAt }
-              : { value: undefined, freshUntil: 0, staleUntil: 0, retryAt },
+            old && failure !== "auth"
+              ? { ...old, retryAt, error: failure }
+              : { value: undefined, freshUntil: 0, staleUntil: 0, retryAt, error: failure },
           );
+
           // Authentication revocation fails closed; never disclose cached private metadata.
-          if (
-            old &&
-            old.value !== undefined &&
-            this.now() < old.staleUntil &&
-            !(error instanceof UpserveError && error.code === "auth")
-          )
+          if (old && old.value !== undefined && this.now() < old.staleUntil && failure !== "auth")
             return old.value as T;
+
           throw error;
         } finally {
           this.pending.delete(key);

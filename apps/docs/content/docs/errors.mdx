@@ -32,11 +32,11 @@ Raw GitHub responses and credentials aren't sent to clients. Not every HTTP erro
 | `invalid`       | `422`                            | Metadata or version validation failed                                      |
 | `auth`          | `503`                            | The upstream rejected access; this isn't a downstream client login failure |
 | `network`       | `503`                            | An upstream request or manifest load failed                                |
-| `rate_limit`    | `503`                            | Refresh is delayed; this may follow an earlier failure cooldown            |
+| `rate_limit`    | `503`                            | The upstream rate-limited refresh, or a cooldown from an earlier version   |
 | `configuration` | `503` if raised during a request | Invalid configuration; normally discovered at startup                      |
 | `internal`      | `500`                            | An error outside the recognized operational categories                     |
 
-The original failing request may report `auth` or `network`, while a later request during its cooldown reports `rate_limit`. An error code alone isn't a complete history of GitHub's response.
+Requests during a failure cooldown report the original code and status. For example, a manifest that fails validation returns `422 invalid` both for the first request and for later requests before the cooldown ends, and Upserve doesn't contact the upstream again. Cooldown responses can include `Retry-After`. Cooldown entries written by earlier versions don't record a code and report `rate_limit` until they expire.
 
 ## Retry behavior
 

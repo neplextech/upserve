@@ -177,7 +177,11 @@ it("preserves a valid manifest when a subsequent response is malformed", async (
 
   now = 20;
 
-  expect((await app.request("/demo/stable/manifest")).status).toBe(503);
+  const expired = await app.request("/demo/stable/manifest");
+
+  // The cooldown preserves the validation failure instead of reporting a rate limit.
+  expect(expired.status).toBe(422);
+  expect(await expired.json()).toEqual({ error: "invalid" });
 });
 
 it.each(["assets/1/2", "download"])(

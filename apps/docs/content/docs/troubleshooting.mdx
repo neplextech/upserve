@@ -50,7 +50,8 @@ Read the JSON `error`:
 
 - `auth`: confirm the repository exists, the token can read it and the repository name is correct. GitHub can return `404` for a private repository you can't access; Upserve treats that as an access failure.
 - `network`: check server egress to GitHub and download hosts, DNS and timeouts.
-- `rate_limit`: honor the cooldown. This can follow an earlier network/access failure, not just a GitHub quota response.
+- `rate_limit`: honor the cooldown. GitHub limited requests, or a cooldown entry was written by an earlier Upserve version.
+- `invalid` repeated for about 15 seconds after publishing a fix: the failure cooldown is still active. Wait, or call `refresh()` after it ends.
 
 If the cache is empty or its stale window has ended, Upserve can't answer from old data. Restoring upstream access is the fix. Increasing `staleIfError` only helps future outages when valid data has already been cached.
 

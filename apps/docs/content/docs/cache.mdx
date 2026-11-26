@@ -38,7 +38,7 @@ This is **stale-if-error**: old but validated metadata can bridge a short outage
 
 If GitHub fails and Upserve has usable cached metadata, the client can still get an update response until the stale window ends. A malformed refresh doesn't replace the previous validated data.
 
-If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds.
+If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds. Requests during the cooldown receive the same error code and status as the failure that started it, so a malformed manifest keeps returning `422 invalid` rather than a rate limit. Only the code is cached, never the message or upstream body, and persistent stores keep it across restarts.
 
 A successful **empty** release list means no releases exist. It replaces the previous list and uses the shorter `negativeTtl`. This is **negative caching**: Upserve remembers that nothing was found without treating an outage as an empty repository.
 

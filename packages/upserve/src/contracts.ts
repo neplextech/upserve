@@ -1,5 +1,7 @@
 import type { Hono, Context } from "hono";
 
+import type { UpserveErrorCode } from "./errors.js";
+
 /** A published binary or manifest. IDs and names are unique within a release. */
 export interface Asset {
   /** Opaque provider identity, stable across refreshes. */
@@ -51,6 +53,9 @@ export interface Release {
   metadata?: unknown;
 }
 
+/** Safe failure classification persisted during a refresh cooldown. */
+export type CacheFailure = UpserveErrorCode | "internal";
+
 /** Serializable upstream response, stored only after successful validation. */
 export interface CacheEntry {
   /** Validated serializable metadata; undefined denotes a cold failure cooldown. */
@@ -64,6 +69,13 @@ export interface CacheEntry {
 
   /** Earliest permitted refresh time in epoch milliseconds. */
   retryAt?: number;
+
+  /**
+   * Classification of the failure that started the current cooldown. Only the code is
+   * stored; messages, upstream bodies and credentials are never persisted. Entries written
+   * before this field existed omit it and are reported as rate_limit during cooldown.
+   */
+  error?: CacheFailure;
 }
 
 /** Persistent stores must isolate keys and return independent serializable values. */
