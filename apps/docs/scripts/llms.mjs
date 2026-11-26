@@ -1,3 +1,4 @@
+import { withBasePath } from "../lib/paths.mjs";
 import { readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 
 const files = (await readdir("content/docs")).filter((x) => x.endsWith(".mdx")).sort();
@@ -10,8 +11,8 @@ await writeFile(
         (x) =>
           "- [" +
           x.replace(".mdx", "") +
-          "](/docs/" +
-          x.replace(".mdx", "").replace("index", "") +
+          "](" +
+          withBasePath("/docs/" + x.replace(".mdx", "").replace("index", "")) +
           ")",
       )
       .join("\n"),

@@ -6,7 +6,8 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node scripts/llms.mjs && node scripts/social-images.mjs && next build --webpack",
     "postinstall": "fumadocs-mdx",
-    "social:generate": "node scripts/social-images.mjs"
+    "social:generate": "node scripts/social-images.mjs",
+    "verify:export": "node scripts/verify-export.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",

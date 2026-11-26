@@ -1,0 +1,72 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/docs/**"
+      - "packages/config/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".npmrc"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "apps/docs/**"
+      - "packages/config/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".npmrc"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Read GitHub Pages configuration
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+        id: pages
+      - run: pnpm install --frozen-lockfile
+      - name: Build and verify static documentation
+        run: pnpm docs:build && pnpm --filter @upserve/docs verify:export
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/{0}', github.event.repository.name) || steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ github.event_name == 'pull_request' && format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) || steps.pages.outputs.base_url }}
+      - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          path: apps/docs/out
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v5
+        id: deployment

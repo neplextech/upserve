@@ -1,3 +1,4 @@
+import { withBasePath } from "../lib/paths.mjs";
 import { markPath } from "../lib/brand.mjs";
 
 /** Upserve's routing mark, shared with the social preview artwork. */
@@ -25,7 +26,10 @@ export function BrandIcon({ name, className = "" }: { name: BrandName; className
     <span
       aria-hidden="true"
       className={`brand-icon ${className}`}
-      style={{ maskImage: `url(/brands/${name}.svg)`, WebkitMaskImage: `url(/brands/${name}.svg)` }}
+      style={{
+        maskImage: `url(${withBasePath(`/brands/${name}.svg`)})`,
+        WebkitMaskImage: `url(${withBasePath(`/brands/${name}.svg`)})`,
+      }}
     />
   );
 }
