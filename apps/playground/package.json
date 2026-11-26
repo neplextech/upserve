@@ -1,0 +1,10 @@
+{
+  "name": "@upserve/playground",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@neplex/upserve": "workspace:*",
+    "@neplex/upserve-generic": "workspace:*"
+  }
+}

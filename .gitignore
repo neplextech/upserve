@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+.source/
+out/
+coverage/
+*.sqlite*
+.env*
+.upserve/
+.code-review-graph/

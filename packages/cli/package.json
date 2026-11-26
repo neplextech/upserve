@@ -1,0 +1,49 @@
+{
+  "name": "@neplex/upserve-cli",
+  "version": "0.1.0",
+  "description": "Composable application update distribution for Fetch runtimes",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neplextech/upserve.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "upserve": "dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@neplex/upserve": "workspace:*",
+    "@neplex/upserve-android": "workspace:*",
+    "@neplex/upserve-electron": "workspace:*",
+    "@neplex/upserve-generic": "workspace:*",
+    "@neplex/upserve-github": "workspace:*",
+    "@neplex/upserve-sqlite": "workspace:*",
+    "@neplex/upserve-tauri": "workspace:*",
+    "hono": "catalog:",
+    "tsx": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

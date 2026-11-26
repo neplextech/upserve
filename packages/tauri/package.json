@@ -1,0 +1,38 @@
+{
+  "name": "@neplex/upserve-tauri",
+  "version": "0.1.0",
+  "description": "Composable application update distribution for Fetch runtimes",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neplextech/upserve.git",
+    "directory": "packages/tauri"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@neplex/upserve": "workspace:*",
+    "hono": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

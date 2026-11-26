@@ -1,0 +1,19 @@
+{
+  "extends": "./packages/config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@neplex/upserve": ["packages/upserve/src/index.ts"],
+      "@neplex/upserve-github": ["packages/github/src/index.ts"],
+      "@neplex/upserve-tauri": ["packages/tauri/src/index.ts"],
+      "@neplex/upserve-electron": ["packages/electron/src/index.ts"],
+      "@neplex/upserve-android": ["packages/android/src/index.ts"],
+      "@neplex/upserve-generic": ["packages/generic/src/index.ts"],
+      "@neplex/upserve-sqlite": ["packages/sqlite/src/index.ts"],
+      "@neplex/upserve-cli": ["packages/cli/src/index.ts"]
+    },
+    "types": ["node"],
+    "allowJs": true
+  },
+  "include": ["packages/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "apps/playground/**/*.ts"]
+}
