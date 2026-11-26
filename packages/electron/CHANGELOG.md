@@ -1,5 +1,13 @@
 # @neplex/upserve-electron
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [ed0006b]
+- Updated dependencies [8cde839]
+  - @neplex/upserve@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
