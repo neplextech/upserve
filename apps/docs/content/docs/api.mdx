@@ -13,10 +13,10 @@ Creates a real Hono application with `.fetch`, `.request`, `.route` and the norm
 
 `Upserve` adds two trusted server-side methods:
 
-| Method                                           | What it does                                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation, respecting failure cooldowns |
-| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry        |
+| Method                                           | What it does                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation; rejects during a cooldown or on failure |
+| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry                   |
 
 Both reject unknown application IDs with `UpserveError("missing", ...)`. Neither is an HTTP administration endpoint. Refresh doesn't clear all adapter manifests; see [cache refresh behavior](/docs/cache#make-new-releases-available).
 
@@ -215,6 +215,6 @@ Validate inside `load` before returning. Provider resources have no stale-on-err
 | `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
 | `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
 
-`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. Preserve it rather than interpreting it as fresh empty data.
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error` and optional `due`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. `due` is set when an authenticated webhook asks for a refresh: the next load of that entry, in any process sharing the store, also revalidates provider resources. A successful load clears it. Preserve it rather than interpreting it as fresh empty data.
 
 `CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.

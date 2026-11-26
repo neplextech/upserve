@@ -82,9 +82,9 @@ This keeps metadata fresh for five minutes and allows ten additional minutes dur
 
 ## Make new releases available
 
-There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event.
+There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event; bursts of events are coalesced into at most one trailing refresh.
 
-Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh, while respecting cooldowns. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
+Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh. It waits for a refresh already in progress rather than reusing it, and it rejects with the failure's `UpserveError` during a cooldown or when the refresh fails, instead of resolving with cached data. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
 
 `await updates.invalidate("editor")` removes the resolved release-list entry. The next check reloads it, but invalidation doesn't remove every provider resource or manifest. Use these methods only from trusted server code; Upserve has no public force-refresh query parameter or admin endpoint.
 

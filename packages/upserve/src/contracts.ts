@@ -85,6 +85,13 @@ export interface CacheEntry {
    * before this field existed omit it and are reported as rate_limit during cooldown.
    */
   error?: CacheFailure;
+
+  /**
+   * Set when an authenticated webhook asked for a refresh. The next load of this entry, in
+   * any process sharing the store, also revalidates provider resources. A successful load
+   * clears it. Stores that drop it fall back to ordinary resource lifetimes.
+   */
+  due?: boolean;
 }
 
 /** Persistent stores must isolate keys and return independent serializable values. */

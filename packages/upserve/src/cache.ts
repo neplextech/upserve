@@ -80,16 +80,21 @@ export class Coordinator {
 
   async get<T>(
     key: string,
-    load: (previous: T | undefined) => Promise<T>,
+    load: (previous: T | undefined, due: boolean) => Promise<T>,
     policy: CachePolicy = {},
     force = false,
   ): Promise<T> {
+    // A forced load must observe upstream state after the caller's request, so it never
+    // joins a load that was already running when it was requested.
+    if (force) await this.settle(key);
+
     const old = await this.store.get(key);
 
     const now = this.now();
     if (!force && old && now < old.freshUntil) return old.value as T;
     if (old?.retryAt && now < old.retryAt) {
-      if (now < old.staleUntil && old.value !== undefined) return old.value as T;
+      // A forced refresh must not report cached data as refreshed.
+      if (!force && now < old.staleUntil && old.value !== undefined) return old.value as T;
 
       // Report the original classification without contacting the upstream again.
       throw cooldownError(old);
@@ -99,7 +104,7 @@ export class Coordinator {
     if (!task) {
       task = this.slot(async () => {
         try {
-          const value = await load(old?.value as T | undefined);
+          const value = await load(old?.value as T | undefined, old?.due === true);
 
           const ttl =
             Array.isArray(value) && !value.length
@@ -128,7 +133,14 @@ export class Coordinator {
           );
 
           // Authentication revocation fails closed; never disclose cached private metadata.
-          if (old && old.value !== undefined && this.now() < old.staleUntil && failure !== "auth")
+          // Forced refreshes report their failure instead of returning the previous value.
+          if (
+            !force &&
+            old &&
+            old.value !== undefined &&
+            this.now() < old.staleUntil &&
+            failure !== "auth"
+          )
             return old.value as T;
 
           throw error;
@@ -148,8 +160,26 @@ export class Coordinator {
     return task;
   }
 
-  async invalidate(key: string): Promise<void> {
+  /** Wait for an in-flight load of this key, ignoring its outcome. */
+  async settle(key: string): Promise<void> {
     await this.pending.get(key)?.catch(() => undefined);
+  }
+
+  /**
+   * Make a cached value due for refresh while keeping it for stale fallback and keeping
+   * any cooldown. The next read reloads once its cooldown allows, and its loader is told
+   * the entry is due. Cold entries are unchanged.
+   */
+  async expire(key: string): Promise<void> {
+    const entry = await this.store.get(key);
+
+    // Already due entries need no write, so a burst of events costs one store update.
+    if (entry && entry.value !== undefined && !entry.due)
+      await this.store.set(key, { ...entry, freshUntil: 0, due: true });
+  }
+
+  async invalidate(key: string): Promise<void> {
+    await this.settle(key);
     await this.store.delete(key);
   }
 }

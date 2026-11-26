@@ -1,6 +1,13 @@
 import { Hono } from "hono";
 import { etag } from "hono/etag";
-import type { AppConfig, Asset, Release, ResourceContext, UpserveConfig } from "./contracts.js";
+import type {
+  AppConfig,
+  Asset,
+  CacheFailure,
+  Release,
+  ResourceContext,
+  UpserveConfig,
+} from "./contracts.js";
 import { validateAliases } from "./assets.js";
 import { Coordinator, memoryCache } from "./cache.js";
 import { UpserveError } from "./errors.js";
@@ -26,6 +33,18 @@ export { memoryCache } from "./cache.js";
 export { UpserveError } from "./errors.js";
 export type { UpserveErrorCode } from "./errors.js";
 export { newer, validVersion, compareVersions, readText } from "./validation.js";
+
+/** Result of the refresh started by an accepted webhook event. */
+interface WebhookOutcome {
+  /** Whether every accepted event is covered by a completed refresh. */
+  refreshed: boolean;
+
+  /** The refresh waits for a cooldown or failed; the next read after it reloads. */
+  deferred?: true;
+
+  /** Error code of a failed refresh, when known. */
+  error?: CacheFailure;
+}
 
 /** A genuine Hono application with trusted programmatic refresh controls. */
 export type Upserve = Hono & {
@@ -98,7 +117,15 @@ export function createUpserve(config: UpserveConfig): Upserve {
         }),
     };
 
+    // Webhook events accepted for this application, and the newest event that a completed
+    // forced load started after. While covered < requested, ordinary reads force a reload.
+    let requested = 0;
+
+    let covered = 0;
+
     const load = async (force = false) => {
+      const target = requested;
+
       // Each refresh has its own deadline; client disconnects cannot poison shared refreshes.
       const values = await application.provider.releases({
         ...resource,
@@ -125,6 +152,8 @@ export function createUpserve(config: UpserveConfig): Upserve {
         validateAliases(release);
       }
 
+      if (force) covered = Math.max(covered, target);
+
       return parsed.data
         .filter((r) => !r.draft && !r.yanked)
         .sort((a, b) => compareVersions(a.version, b.version));
@@ -137,7 +166,7 @@ export function createUpserve(config: UpserveConfig): Upserve {
 
       const all = await coordinator.get<Release[]>(
         key,
-        (previous) => load(previous === undefined),
+        (previous, due) => load(previous === undefined || due || covered < requested),
         application.cache,
       );
       return all.filter(select);
@@ -293,17 +322,71 @@ export function createUpserve(config: UpserveConfig): Upserve {
     });
 
     if (application.provider.verifyWebhook) {
-      let nextWebhook = 0;
+      let draining: Promise<WebhookOutcome> | undefined;
+
+      /**
+       * Run forced refreshes until every accepted event is covered. Each round needs a new
+       * event, so a burst of any size costs at most one active and one trailing refresh.
+       * A round that cannot refresh, because of a cooldown or failure, stops the drain;
+       * the entry stays expired and the next read after the cooldown reloads it.
+       */
+      const drain = async (): Promise<WebhookOutcome> => {
+        try {
+          for (let round = 0; round < 4 && covered < requested; round++) {
+            // A load already running for a client read may cover the events by itself.
+            await coordinator.settle(key);
+
+            if (covered >= requested) break;
+
+            const before = covered;
+
+            await coordinator.get(key, () => load(true), application.cache, true);
+
+            // During a cooldown, or after a failed load with stale fallback, the coordinator
+            // serves the cached value. Report the recorded failure code, if any.
+            if (covered === before)
+              return { refreshed: false, deferred: true, error: (await store.get(key))?.error };
+          }
+
+          return covered >= requested ? { refreshed: true } : { refreshed: false, deferred: true };
+        } catch (error) {
+          return {
+            refreshed: false,
+            deferred: true,
+            error: error instanceof UpserveError ? error.code : "internal",
+          };
+        } finally {
+          draining = undefined;
+        }
+      };
+
       app.post("/webhooks/" + name, async (c) => {
         const body = new TextEncoder().encode(
           await readText(new Response(c.req.raw.body), 256 * 1024),
         );
+
         if (!(await application.provider.verifyWebhook!(c.req.raw, body)))
           return c.json({ error: "unauthorized" }, 401);
-        if (Date.now() < nextWebhook) return c.json({ error: "rate_limit" }, 429);
-        nextWebhook = Date.now() + 10_000;
-        await controls.get(name)!.refresh();
-        return c.json({ refreshed: true });
+
+        // Persist that the release list is due before scheduling, so a restart or another
+        // instance sharing the store still reloads instead of serving pre-event data.
+        await coordinator.expire(key);
+
+        requested++;
+
+        if (draining) return c.json({ accepted: true, refreshed: false, coalesced: true }, 202);
+
+        draining = drain();
+
+        if (config.background) {
+          config.background(draining);
+
+          return c.json({ accepted: true, refreshed: false, scheduled: true }, 202);
+        }
+
+        const outcome = await draining;
+
+        return c.json({ accepted: true, ...outcome }, outcome.refreshed ? 200 : 202);
       });
     }
   }

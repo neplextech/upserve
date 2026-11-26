@@ -15,12 +15,12 @@ Raw GitHub responses and credentials aren't sent to clients. Not every HTTP erro
 
 | Status                      | Meaning                                                                                 | What to do                                                                    |
 | --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `202 Accepted`              | A webhook event was accepted; its refresh was coalesced, scheduled or deferred          | Nothing; Upserve refreshes the release list itself                            |
 | `204 No Content`            | No release or applicable update for this request                                        | Keep the installed version; don't parse a JSON body                           |
 | `304 Not Modified`          | Your metadata ETag still matches, or a download validator matched                       | Reuse your client-side cached response                                        |
 | `401 Unauthorized`          | Application access denied, or webhook verification failed                               | Supply the correct downstream credentials or signature                        |
 | `404 Not Found`             | Unknown route/channel, missing release, manifest or asset                               | Check the exact URL and selected release's assets                             |
 | `422 Unprocessable Entity`  | Invalid version or upstream metadata                                                    | Correct the version or release files; repeated immediate retries won't fix it |
-| `429 Too Many Requests`     | Valid webhook deliveries arrived inside the local cooldown                              | Redeliver later if needed                                                     |
 | `503 Service Unavailable`   | Upstream failure, denied upstream access or refresh cooldown with no usable cached data | Respect `Retry-After` and investigate the error code                          |
 | `500 Internal Server Error` | An unexpected error, including a plugin/storage exception                               | Inspect your server integration without logging secrets                       |
 

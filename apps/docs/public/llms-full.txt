@@ -1201,9 +1201,9 @@ This keeps metadata fresh for five minutes and allows ten additional minutes dur
 
 ## Make new releases available
 
-There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event.
+There are no automatic polling timers. By default, the first request after expiry refreshes metadata. Configure an [authenticated GitHub webhook](/docs/webhooks) to refresh after a release event; bursts of events are coalesced into at most one trailing refresh.
 
-Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh, while respecting cooldowns. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
+Embedded applications can call `await updates.refresh("editor")`. This revalidates the release list and provider page resources even when they're fresh. It waits for a refresh already in progress rather than reusing it, and it rejects with the failure's `UpserveError` during a cooldown or when the refresh fails, instead of resolving with cached data. It doesn't invalidate every adapter manifest. If you replace a manifest on an existing release, its own TTL still matters.
 
 `await updates.invalidate("editor")` removes the resolved release-list entry. The next check reloads it, but invalidation doesn't remove every provider resource or manifest. Use these methods only from trusted server code; Upserve has no public force-refresh query parameter or admin endpoint.
 
@@ -1370,15 +1370,42 @@ Upserve verifies the HMAC-SHA256 signature, the `release` event type and `reposi
 
 ## Test a delivery
 
-Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. A successful refresh responds:
+Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. When the refresh completes before the response, Upserve returns `200`:
 
 ```json
-{ "refreshed": true }
+{ "accepted": true, "refreshed": true }
 ```
 
-A missing or incorrect signature, wrong repository or unsupported event type returns `401`. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken.
+A missing or incorrect signature, wrong repository or unsupported event type returns `401` and never schedules a refresh. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken. Bodies are limited to 256 KiB; a larger body returns `422` before verification.
 
-Bodies are limited to 256 KiB. Valid deliveries are limited to one refresh per application every ten seconds in each process; faster deliveries return `429`. If the refresh fails, the response uses the normal [error format](/docs/errors).
+## Bursts of release events
+
+Publishing a release commonly sends several events within a second, for example `edited`, `published` and `released`. Every authenticated event is accepted; none is rejected for arriving too soon. Upserve coalesces them per application:
+
+1. The first event starts a forced refresh of the release list and provider pages.
+2. Events that arrive while that refresh runs return `202` immediately:
+
+   ```json
+   { "accepted": true, "refreshed": false, "coalesced": true }
+   ```
+
+3. When the running refresh finishes, Upserve runs exactly one trailing refresh if any event arrived after it started. Its result reflects the newest release state, and the first event's response waits for it.
+
+However many events arrive, a burst costs at most one running and one trailing refresh. A refresh that a client request started before the event isn't reused, because it may predate the publication.
+
+When you pass `background` (for example `executionCtx.waitUntil` on Workers), the first event returns `202` with `"scheduled": true` straight away and the refresh continues in that task. Without `background`, the first event's response waits for the refresh. GitHub stops waiting after ten seconds, but the refresh still finishes in long-lived servers such as Node.js and Bun.
+
+## Cooldowns and failures
+
+Webhook refreshes use the same concurrency pool and respect the same upstream cooldowns as every other refresh. If GitHub is rate limiting, or the refresh fails, the event is still accepted and doesn't contact GitHub again during the cooldown:
+
+```json
+{ "accepted": true, "refreshed": false, "deferred": true, "error": "rate_limit" }
+```
+
+The release state change isn't discarded. Each authenticated event first marks the cached release list as due, which is persisted in the cache store. Clients keep receiving the cached data within its stale window. The first update check after the cooldown reloads the release list and provider pages, in this process or any other instance that shares the store, including after a restart. Upserve schedules no timer for this; it reloads on that next request.
+
+Coalescing state is per process. Separate instances that each receive deliveries refresh independently; route webhooks to one instance if you want a single upstream refresh per burst.
 
 ## What a webhook refreshes
 
@@ -1946,7 +1973,7 @@ For a persistent implementation, add a test that closes and reopens the store be
 
 Use the full key unchanged, make each write atomic and return independent values so callers can't mutate stored data. Preserve `freshUntil`, `staleUntil` and `retryAt` as **absolute epoch milliseconds**, not durations.
 
-Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps and its optional `error` code too. The code is a short string such as `"invalid"`, never a message or credential. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
+Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps, its optional `error` code and its optional `due` flag too. The code is a short string such as `"invalid"`, never a message or credential. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
 
 Persistent caches can contain private release metadata. Restrict access, choose namespaces deliberately and plan retention for obsolete keys. Your store's lifecycle and cleanup methods are yours to manage; `CacheStore` has no close or prune hook.
 
@@ -1972,10 +1999,10 @@ Creates a real Hono application with `.fetch`, `.request`, `.route` and the norm
 
 `Upserve` adds two trusted server-side methods:
 
-| Method                                           | What it does                                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation, respecting failure cooldowns |
-| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry        |
+| Method                                           | What it does                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `refresh(application: string): Promise<void>`    | Forces release-list and provider-resource revalidation; rejects during a cooldown or on failure |
+| `invalidate(application: string): Promise<void>` | Waits for the pending list load, then deletes the resolved release-list entry                   |
 
 Both reject unknown application IDs with `UpserveError("missing", ...)`. Neither is an HTTP administration endpoint. Refresh doesn't clear all adapter manifests; see [cache refresh behavior](/docs/cache#make-new-releases-available).
 
@@ -2174,7 +2201,7 @@ Validate inside `load` before returning. Provider resources have no stale-on-err
 | `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
 | `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
 
-`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. Preserve it rather than interpreting it as fresh empty data.
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error` and optional `due`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. `due` is set when an authenticated webhook asks for a refresh: the next load of that entry, in any process sharing the store, also revalidates provider resources. A successful load clears it. Preserve it rather than interpreting it as fresh empty data.
 
 `CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.
 
@@ -2307,12 +2334,12 @@ Raw GitHub responses and credentials aren't sent to clients. Not every HTTP erro
 
 | Status                      | Meaning                                                                                 | What to do                                                                    |
 | --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `202 Accepted`              | A webhook event was accepted; its refresh was coalesced, scheduled or deferred          | Nothing; Upserve refreshes the release list itself                            |
 | `204 No Content`            | No release or applicable update for this request                                        | Keep the installed version; don't parse a JSON body                           |
 | `304 Not Modified`          | Your metadata ETag still matches, or a download validator matched                       | Reuse your client-side cached response                                        |
 | `401 Unauthorized`          | Application access denied, or webhook verification failed                               | Supply the correct downstream credentials or signature                        |
 | `404 Not Found`             | Unknown route/channel, missing release, manifest or asset                               | Check the exact URL and selected release's assets                             |
 | `422 Unprocessable Entity`  | Invalid version or upstream metadata                                                    | Correct the version or release files; repeated immediate retries won't fix it |
-| `429 Too Many Requests`     | Valid webhook deliveries arrived inside the local cooldown                              | Redeliver later if needed                                                     |
 | `503 Service Unavailable`   | Upstream failure, denied upstream access or refresh cooldown with no usable cached data | Respect `Retry-After` and investigate the error code                          |
 | `500 Internal Server Error` | An unexpected error, including a plugin/storage exception                               | Inspect your server integration without logging secrets                       |
 

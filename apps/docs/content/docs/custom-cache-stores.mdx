@@ -89,7 +89,7 @@ For a persistent implementation, add a test that closes and reopens the store be
 
 Use the full key unchanged, make each write atomic and return independent values so callers can't mutate stored data. Preserve `freshUntil`, `staleUntil` and `retryAt` as **absolute epoch milliseconds**, not durations.
 
-Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps and its optional `error` code too. The code is a short string such as `"invalid"`, never a message or credential. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
+Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps, its optional `error` code and its optional `due` flag too. The code is a short string such as `"invalid"`, never a message or credential. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
 
 Persistent caches can contain private release metadata. Restrict access, choose namespaces deliberately and plan retention for obsolete keys. Your store's lifecycle and cleanup methods are yours to manage; `CacheStore` has no close or prune hook.
 

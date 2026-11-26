@@ -47,15 +47,42 @@ Upserve verifies the HMAC-SHA256 signature, the `release` event type and `reposi
 
 ## Test a delivery
 
-Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. A successful refresh responds:
+Use GitHub's webhook delivery history to inspect a real event or redeliver a signed release event. When the refresh completes before the response, Upserve returns `200`:
 
 ```json
-{ "refreshed": true }
+{ "accepted": true, "refreshed": true }
 ```
 
-A missing or incorrect signature, wrong repository or unsupported event type returns `401`. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken.
+A missing or incorrect signature, wrong repository or unsupported event type returns `401` and never schedules a refresh. GitHub's initial `ping` event isn't a release event, so it also returns `401`. That doesn't mean release signature verification is broken. Bodies are limited to 256 KiB; a larger body returns `422` before verification.
 
-Bodies are limited to 256 KiB. Valid deliveries are limited to one refresh per application every ten seconds in each process; faster deliveries return `429`. If the refresh fails, the response uses the normal [error format](/docs/errors).
+## Bursts of release events
+
+Publishing a release commonly sends several events within a second, for example `edited`, `published` and `released`. Every authenticated event is accepted; none is rejected for arriving too soon. Upserve coalesces them per application:
+
+1. The first event starts a forced refresh of the release list and provider pages.
+2. Events that arrive while that refresh runs return `202` immediately:
+
+   ```json
+   { "accepted": true, "refreshed": false, "coalesced": true }
+   ```
+
+3. When the running refresh finishes, Upserve runs exactly one trailing refresh if any event arrived after it started. Its result reflects the newest release state, and the first event's response waits for it.
+
+However many events arrive, a burst costs at most one running and one trailing refresh. A refresh that a client request started before the event isn't reused, because it may predate the publication.
+
+When you pass `background` (for example `executionCtx.waitUntil` on Workers), the first event returns `202` with `"scheduled": true` straight away and the refresh continues in that task. Without `background`, the first event's response waits for the refresh. GitHub stops waiting after ten seconds, but the refresh still finishes in long-lived servers such as Node.js and Bun.
+
+## Cooldowns and failures
+
+Webhook refreshes use the same concurrency pool and respect the same upstream cooldowns as every other refresh. If GitHub is rate limiting, or the refresh fails, the event is still accepted and doesn't contact GitHub again during the cooldown:
+
+```json
+{ "accepted": true, "refreshed": false, "deferred": true, "error": "rate_limit" }
+```
+
+The release state change isn't discarded. Each authenticated event first marks the cached release list as due, which is persisted in the cache store. Clients keep receiving the cached data within its stale window. The first update check after the cooldown reloads the release list and provider pages, in this process or any other instance that shares the store, including after a restart. Upserve schedules no timer for this; it reloads on that next request.
+
+Coalescing state is per process. Separate instances that each receive deliveries refresh independently; route webhooks to one instance if you want a single upstream refresh per burst.
 
 ## What a webhook refreshes
 
