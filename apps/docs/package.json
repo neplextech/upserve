@@ -4,10 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
-    "build": "node scripts/llms.mjs && next build --webpack",
-    "postinstall": "fumadocs-mdx"
+    "build": "node scripts/llms.mjs && node scripts/social-images.mjs && next build --webpack",
+    "postinstall": "fumadocs-mdx",
+    "social:generate": "node scripts/social-images.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "fumadocs-core": "catalog:",
     "fumadocs-mdx": "catalog:",
@@ -16,11 +19,13 @@
     "next-themes": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "shiki": "catalog:",
     "tailwindcss": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "sharp": "catalog:",
     "typescript": "catalog:"
   }
 }

@@ -1,3 +1,4 @@
+import { UpserveMark } from "../../components/identity";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { source } from "../../lib/source";
 import type { ReactNode } from "react";
@@ -6,7 +7,15 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <DocsLayout
       tree={source.pageTree}
-      nav={{ title: "Upserve", url: "/" }}
+      nav={{
+        title: (
+          <span className="docs-wordmark">
+            <UpserveMark />
+            upserve
+          </span>
+        ),
+        url: "/",
+      }}
       links={[{ text: "GitHub", url: "https://github.com/neplextech/upserve", external: true }]}
     >
       {children}
