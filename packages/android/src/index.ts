@@ -1,4 +1,4 @@
-import { defineAdapter, newer, UpserveError, validVersion } from "@neplex/upserve";
+import { defineAdapter, findAssetByUrl, newer, UpserveError, validVersion } from "@neplex/upserve";
 
 /** APK manifest. Compatibility metadata is application-defined and never executes code. */
 export interface AndroidManifest {
@@ -67,11 +67,13 @@ export function android(options: AndroidOptions = {}) {
             )
               throw new UpserveError("invalid", "Invalid Android manifest");
 
-            const asset = release.assets.find(
-              (a) =>
-                a.url === m.android.url && a.size === m.android.size && a.name.endsWith(".apk"),
-            );
-            if (!asset) throw new UpserveError("invalid", "APK missing or size mismatch");
+            const asset =
+              typeof m.android.url === "string"
+                ? findAssetByUrl(release.assets, m.android.url)
+                : undefined;
+
+            if (!asset || asset.size !== m.android.size || !asset.name.endsWith(".apk"))
+              throw new UpserveError("invalid", "APK missing or size mismatch");
             return { m, asset };
           },
         );

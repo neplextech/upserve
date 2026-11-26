@@ -40,6 +40,7 @@ export const releaseSchema = z.object({
         name: z.string().min(1),
         size: z.number().int().nonnegative(),
         url: z.url(),
+        aliases: z.array(z.url()).max(8).optional(),
         contentType: z.string().optional(),
       }),
     )

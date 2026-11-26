@@ -1,6 +1,9 @@
-import { defineAdapter, newer, UpserveError, validVersion } from "@neplex/upserve";
+import { defineAdapter, findAssetByUrl, newer, UpserveError, validVersion } from "@neplex/upserve";
 
-/** Tauri v2 manifest selection. Signature contents are passed through unchanged. */
+/**
+ * Tauri v2 manifest selection. Signature contents are passed through unchanged. Platform
+ * URLs must equal a release asset's canonical URL or one of its aliases.
+ */
 export interface TauriOptions {
   /** Published manifest asset name; defaults to the integration standard filename. */
   manifest?: string;
@@ -43,7 +46,10 @@ export function tauri(options: TauriOptions = {}) {
             )
               throw new UpserveError("invalid", "Tauri signature missing");
 
-            const asset = release.assets.find((a) => a.url === item.url);
+            // Match the canonical URL or a provider-verified alias; clients always receive
+            // this server's asset route, never the matched upstream URL.
+            const asset = findAssetByUrl(release.assets, item.url);
+
             if (!asset) throw new UpserveError("invalid", "Tauri binary missing from release");
             platforms[target] = {
               signature: item.signature,

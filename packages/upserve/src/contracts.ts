@@ -16,6 +16,15 @@ export interface Asset {
   /** Validated upstream HTTPS URL; never include credentials. */
   url: string;
 
+  /**
+   * Optional alternate upstream HTTPS URLs identifying this same asset, such as a provider
+   * API URL that publishers embed in manifests. Aliases are used only to match manifest
+   * entries; delivery and redirects always use {@link Asset.url}. Providers must verify
+   * that each alias belongs to the same upstream asset. At most 8 per asset, and no URL
+   * may identify two assets of one release.
+   */
+  aliases?: string[];
+
   /** Optional upstream media type. */
   contentType?: string;
 }

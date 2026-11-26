@@ -269,7 +269,7 @@ Publish a GitHub release such as `v1.2.0` in `owner/editor`. Upload:
 - Every updater binary referenced in its `platforms` object.
 - The signatures produced by your existing build, included in that manifest.
 
-For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must exactly match the asset's GitHub download URL. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
+For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must identify an asset of this release: either its public download URL (`https://github.com/owner/editor/releases/download/...`) or its GitHub REST asset URL (`https://api.github.com/repos/owner/editor/releases/assets/ID`), which Tauri's GitHub release action writes by default. The REST URL must name an asset ID from this release in the configured repository. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
 
 A static manifest has this shape. Replace the repository, artifact name and signature with the values produced by your release pipeline; `SIGNATURE_FROM_CI` isn't a usable signature.
 
@@ -285,7 +285,7 @@ A static manifest has this shape. Replace the repository, artifact name and sign
 }
 ```
 
-Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Notes and publication date come from the release metadata.
+Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Matching a REST URL never makes it the download destination: public redirects still point at the release download URL. A URL from another repository, an unknown asset ID or any other host returns `422 invalid`. Notes and publication date come from the release metadata.
 
 </Step>
 <Step>
@@ -586,7 +586,7 @@ sha256sum editor.apk
 wc -c < editor.apk
 ```
 
-On macOS, use `shasum -a 256 editor.apk`. The manifest URL must exactly match the APK's GitHub download URL. Its version must match the release version, and its size must match the GitHub asset metadata.
+On macOS, use `shasum -a 256 editor.apk`. The manifest URL must identify the APK in this release, by its GitHub download URL or its REST asset URL. Its version must match the release version, and its size must match the GitHub asset metadata.
 
 </Step>
 <Step>
@@ -1007,6 +1007,10 @@ The provider fetches 100 releases per page, up to 20 pages by default. If all co
 
 Network and server errors get two retries by default, using exponential backoff with jitter. Rate-limit responses establish a cooldown instead of repeated retries. GitHub's `Retry-After` and reset time influence when requests resume. A secondary-limit message without those headers pauses requests for one minute. Other `403` responses are treated as access failures. See [caching and rate limits](/docs/cache) for what your clients receive.
 
+## Asset URLs
+
+Each asset's public `browser_download_url` is its canonical URL and the only redirect destination. When GitHub also returns the REST `url` (`https://api.github.com/repos/owner/editor/releases/assets/ID`), the provider records it as an [asset alias](/docs/api#release-and-asset) after checking that it names the same asset ID in the configured repository. A mismatched REST URL rejects the release page as `invalid`. Adapters use aliases only to recognize manifest entries, such as Tauri `latest.json` files that reference REST URLs.
+
 ## Options you may need
 
 | Option          | Type      | Required | Default                                  | Change it when                                                              |
@@ -1153,7 +1157,7 @@ This is **stale-if-error**: old but validated metadata can bridge a short outage
 
 If GitHub fails and Upserve has usable cached metadata, the client can still get an update response until the stale window ends. A malformed refresh doesn't replace the previous validated data.
 
-If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds.
+If GitHub is unavailable and nothing is cached yet, the update endpoint returns an error, usually `503 Service Unavailable`. A malformed response can return `422`. Upserve records a refresh cooldown so the next client doesn't immediately repeat the failed request. The default cooldown for failures without a provider deadline is 15 seconds. Requests during the cooldown receive the same error code and status as the failure that started it, so a malformed manifest keeps returning `422 invalid` rather than a rate limit. Only the code is cached, never the message or upstream body, and persistent stores keep it across restarts.
 
 A successful **empty** release list means no releases exist. It replaces the previous list and uses the shorter `negativeTtl`. This is **negative caching**: Upserve remembers that nothing was found without treating an outage as an empty repository.
 
@@ -1942,7 +1946,7 @@ For a persistent implementation, add a test that closes and reopens the store be
 
 Use the full key unchanged, make each write atomic and return independent values so callers can't mutate stored data. Preserve `freshUntil`, `staleUntil` and `retryAt` as **absolute epoch milliseconds**, not durations.
 
-Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps too. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
+Don't delete an entry just because `freshUntil` has passed. Upserve may still use it during the stale window or use its validators for refresh. An entry with `value: undefined` can record a failure cooldown; preserve its timestamps and its optional `error` code too. The code is a short string such as `"invalid"`, never a message or credential. JSON drops `undefined` object properties, so decoding a missing `value` as `undefined` must remain valid.
 
 Persistent caches can contain private release metadata. Restrict access, choose namespaces deliberately and plan retention for obsolete keys. Your store's lifecycle and cleanup methods are yours to manage; `CacheStore` has no close or prune hook.
 
@@ -2029,6 +2033,12 @@ Build metadata doesn't change precedence. Tags and provider IDs shouldn't be pas
 
 Reads UTF-8 metadata up to a byte limit, cancels on overflow and releases its stream reader. It returns an empty string when there's no body. Use it before parsing untrusted metadata; don't use it for installers.
 
+## findAssetByUrl
+
+`findAssetByUrl(assets: readonly Asset[], url: string): Asset | undefined`
+
+Finds the asset whose canonical `url` or one of its `aliases` identifies a manifest URL. URLs are compared after parsing, so host case and default ports don't matter while paths and queries must match exactly. It returns `undefined` for relative or credential-bearing input, for no match, and when more than one asset matches. Use it in adapters instead of comparing `asset.url` directly, then link clients to `services.assetUrl()`.
+
 ## UpserveError
 
 `new UpserveError(code, message, retryAt?)`
@@ -2109,7 +2119,9 @@ The following types are exported from the core. Official integrations implement 
 | `publishedAt`     | `string`  | No       | RFC 3339 timestamp                                                       |
 | `metadata`        | `unknown` | No       | Serializable source-specific information; omitted from generic responses |
 
-An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string` and `aliases: string[]`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+
+`aliases` lists other upstream URLs that identify the same asset, such as a provider API URL embedded in manifests. A provider must verify that each alias belongs to the same upstream asset before returning it. The core accepts at most eight per asset, requires HTTPS without credentials or fragments, and rejects a release where an alias identifies a different asset. Aliases are used only for matching: redirects and `open()` always use the canonical `url` and `id`, and Upserve never fetches an alias.
 
 The core accepts at most 10,000 releases, filters drafts/yanked entries and sorts by version. Adapter manifests have additional validation requirements.
 
@@ -2162,7 +2174,7 @@ Validate inside `load` before returning. Provider resources have no stale-on-err
 | `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
 | `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
 
-`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` and optional `retryAt: number`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. Preserve it rather than interpreting it as fresh empty data.
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. Preserve it rather than interpreting it as fresh empty data.
 
 `CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.
 
@@ -2312,11 +2324,11 @@ Raw GitHub responses and credentials aren't sent to clients. Not every HTTP erro
 | `invalid`       | `422`                            | Metadata or version validation failed                                      |
 | `auth`          | `503`                            | The upstream rejected access; this isn't a downstream client login failure |
 | `network`       | `503`                            | An upstream request or manifest load failed                                |
-| `rate_limit`    | `503`                            | Refresh is delayed; this may follow an earlier failure cooldown            |
+| `rate_limit`    | `503`                            | The upstream rate-limited refresh, or a cooldown from an earlier version   |
 | `configuration` | `503` if raised during a request | Invalid configuration; normally discovered at startup                      |
 | `internal`      | `500`                            | An error outside the recognized operational categories                     |
 
-The original failing request may report `auth` or `network`, while a later request during its cooldown reports `rate_limit`. An error code alone isn't a complete history of GitHub's response.
+Requests during a failure cooldown report the original code and status. For example, a manifest that fails validation returns `422 invalid` both for the first request and for later requests before the cooldown ends, and Upserve doesn't contact the upstream again. Cooldown responses can include `Retry-After`. Cooldown entries written by earlier versions don't record a code and report `rate_limit` until they expire.
 
 ## Retry behavior
 
@@ -2377,7 +2389,8 @@ Read the JSON `error`:
 
 - `auth`: confirm the repository exists, the token can read it and the repository name is correct. GitHub can return `404` for a private repository you can't access; Upserve treats that as an access failure.
 - `network`: check server egress to GitHub and download hosts, DNS and timeouts.
-- `rate_limit`: honor the cooldown. This can follow an earlier network/access failure, not just a GitHub quota response.
+- `rate_limit`: honor the cooldown. GitHub limited requests, or a cooldown entry was written by an earlier Upserve version.
+- `invalid` repeated for about 15 seconds after publishing a fix: the failure cooldown is still active. Wait, or call `refresh()` after it ends.
 
 If the cache is empty or its stale window has ended, Upserve can't answer from old data. Restoring upstream access is the fix. Increasing `staleIfError` only helps future outages when valid data has already been cached.
 

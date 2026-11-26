@@ -22,7 +22,7 @@ Publish a GitHub release such as `v1.2.0` in `owner/editor`. Upload:
 - Every updater binary referenced in its `platforms` object.
 - The signatures produced by your existing build, included in that manifest.
 
-For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must exactly match the asset's GitHub download URL. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
+For example, the `darwin-aarch64` entry should point to the Apple Silicon updater artifact from this same release. A manifest URL must identify an asset of this release: either its public download URL (`https://github.com/owner/editor/releases/download/...`) or its GitHub REST asset URL (`https://api.github.com/repos/owner/editor/releases/assets/ID`), which Tauri's GitHub release action writes by default. The REST URL must name an asset ID from this release in the configured repository. Ordinary installers aren't always updater artifacts; use the files Tauri generates for the updater.
 
 A static manifest has this shape. Replace the repository, artifact name and signature with the values produced by your release pipeline; `SIGNATURE_FROM_CI` isn't a usable signature.
 
@@ -38,7 +38,7 @@ A static manifest has this shape. Replace the repository, artifact name and sign
 }
 ```
 
-Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Notes and publication date come from the release metadata.
+Upserve checks the manifest version against the release version, requires nonempty signatures and checks that all referenced binaries exist. It preserves signature strings and replaces download URLs with server asset URLs. Matching a REST URL never makes it the download destination: public redirects still point at the release download URL. A URL from another repository, an unknown asset ID or any other host returns `422 invalid`. Notes and publication date come from the release metadata.
 
 </Step>
 <Step>

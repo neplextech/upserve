@@ -40,6 +40,10 @@ The provider fetches 100 releases per page, up to 20 pages by default. If all co
 
 Network and server errors get two retries by default, using exponential backoff with jitter. Rate-limit responses establish a cooldown instead of repeated retries. GitHub's `Retry-After` and reset time influence when requests resume. A secondary-limit message without those headers pauses requests for one minute. Other `403` responses are treated as access failures. See [caching and rate limits](/docs/cache) for what your clients receive.
 
+## Asset URLs
+
+Each asset's public `browser_download_url` is its canonical URL and the only redirect destination. When GitHub also returns the REST `url` (`https://api.github.com/repos/owner/editor/releases/assets/ID`), the provider records it as an [asset alias](/docs/api#release-and-asset) after checking that it names the same asset ID in the configured repository. A mismatched REST URL rejects the release page as `invalid`. Adapters use aliases only to recognize manifest entries, such as Tauri `latest.json` files that reference REST URLs.
+
 ## Options you may need
 
 | Option          | Type      | Required | Default                                  | Change it when                                                              |

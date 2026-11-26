@@ -1,0 +1,221 @@
+{
+  "id": 459070491,
+  "tag_name": "oppa-v0.4.0",
+  "name": "OPPA v0.4.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-11-26T07:36:37Z",
+  "body": "See the attached assets to download and install this version of OPPA.",
+  "assets": [
+    {
+      "id": 794792076,
+      "name": "latest-android.json",
+      "size": 319,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794792076",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/latest-android.json"
+    },
+    {
+      "id": 794752833,
+      "name": "latest.json",
+      "size": 10128,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752833",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/latest.json"
+    },
+    {
+      "id": 794733992,
+      "name": "OPPA-0.4.0-1.aarch64.rpm",
+      "size": 9112771,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794733992",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA-0.4.0-1.aarch64.rpm"
+    },
+    {
+      "id": 794734052,
+      "name": "OPPA-0.4.0-1.aarch64.rpm.sig",
+      "size": 412,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794734052",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA-0.4.0-1.aarch64.rpm.sig"
+    },
+    {
+      "id": 794736555,
+      "name": "OPPA-0.4.0-1.x86_64.rpm",
+      "size": 9550653,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736555",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA-0.4.0-1.x86_64.rpm"
+    },
+    {
+      "id": 794736612,
+      "name": "OPPA-0.4.0-1.x86_64.rpm.sig",
+      "size": 412,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736612",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA-0.4.0-1.x86_64.rpm.sig"
+    },
+    {
+      "id": 794743258,
+      "name": "OPPA_0.4.0_aarch64.app.tar.gz",
+      "size": 10172193,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794743258",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_aarch64.app.tar.gz"
+    },
+    {
+      "id": 794743321,
+      "name": "OPPA_0.4.0_aarch64.app.tar.gz.sig",
+      "size": 400,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794743321",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_aarch64.app.tar.gz.sig"
+    },
+    {
+      "id": 794734072,
+      "name": "OPPA_0.4.0_aarch64.AppImage",
+      "size": 85264904,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794734072",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_aarch64.AppImage"
+    },
+    {
+      "id": 794734251,
+      "name": "OPPA_0.4.0_aarch64.AppImage.sig",
+      "size": 416,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794734251",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_aarch64.AppImage.sig"
+    },
+    {
+      "id": 794743157,
+      "name": "OPPA_0.4.0_aarch64.dmg",
+      "size": 11721018,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794743157",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_aarch64.dmg"
+    },
+    {
+      "id": 794736636,
+      "name": "OPPA_0.4.0_amd64.AppImage",
+      "size": 87431672,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736636",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_amd64.AppImage"
+    },
+    {
+      "id": 794736762,
+      "name": "OPPA_0.4.0_amd64.AppImage.sig",
+      "size": 416,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736762",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_amd64.AppImage.sig"
+    },
+    {
+      "id": 794736430,
+      "name": "OPPA_0.4.0_amd64.deb",
+      "size": 9548702,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736430",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_amd64.deb"
+    },
+    {
+      "id": 794736501,
+      "name": "OPPA_0.4.0_amd64.deb.sig",
+      "size": 408,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736501",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_amd64.deb.sig"
+    },
+    {
+      "id": 794792074,
+      "name": "OPPA_0.4.0_android_universal.apk",
+      "size": 61262317,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794792074",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_android_universal.apk"
+    },
+    {
+      "id": 794752691,
+      "name": "OPPA_0.4.0_arm64-setup.exe",
+      "size": 6735717,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752691",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64-setup.exe"
+    },
+    {
+      "id": 794752747,
+      "name": "OPPA_0.4.0_arm64-setup.exe.sig",
+      "size": 416,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752747",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64-setup.exe.sig"
+    },
+    {
+      "id": 794733927,
+      "name": "OPPA_0.4.0_arm64.deb",
+      "size": 9110930,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794733927",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64.deb"
+    },
+    {
+      "id": 794733957,
+      "name": "OPPA_0.4.0_arm64.deb.sig",
+      "size": 408,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794733957",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64.deb.sig"
+    },
+    {
+      "id": 794752548,
+      "name": "OPPA_0.4.0_arm64_en-US.msi",
+      "size": 9240576,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752548",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64_en-US.msi"
+    },
+    {
+      "id": 794752636,
+      "name": "OPPA_0.4.0_arm64_en-US.msi.sig",
+      "size": 416,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752636",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_arm64_en-US.msi.sig"
+    },
+    {
+      "id": 794742258,
+      "name": "OPPA_0.4.0_x64-setup.exe",
+      "size": 7485772,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742258",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64-setup.exe"
+    },
+    {
+      "id": 794742276,
+      "name": "OPPA_0.4.0_x64-setup.exe.sig",
+      "size": 412,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742276",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64-setup.exe.sig"
+    },
+    {
+      "id": 794729744,
+      "name": "OPPA_0.4.0_x64.app.tar.gz",
+      "size": 10585698,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794729744",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64.app.tar.gz"
+    },
+    {
+      "id": 794729824,
+      "name": "OPPA_0.4.0_x64.app.tar.gz.sig",
+      "size": 400,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794729824",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64.app.tar.gz.sig"
+    },
+    {
+      "id": 794729663,
+      "name": "OPPA_0.4.0_x64.dmg",
+      "size": 12202328,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794729663",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64.dmg"
+    },
+    {
+      "id": 794742198,
+      "name": "OPPA_0.4.0_x64_en-US.msi",
+      "size": 9871360,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742198",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64_en-US.msi"
+    },
+    {
+      "id": 794742235,
+      "name": "OPPA_0.4.0_x64_en-US.msi.sig",
+      "size": 412,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742235",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_x64_en-US.msi.sig"
+    },
+    {
+      "id": 794793662,
+      "name": "SHA256SUMS.txt",
+      "size": 1370,
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794793662",
+      "browser_download_url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/SHA256SUMS.txt"
+    }
+  ]
+}

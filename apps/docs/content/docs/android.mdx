@@ -39,7 +39,7 @@ sha256sum editor.apk
 wc -c < editor.apk
 ```
 
-On macOS, use `shasum -a 256 editor.apk`. The manifest URL must exactly match the APK's GitHub download URL. Its version must match the release version, and its size must match the GitHub asset metadata.
+On macOS, use `shasum -a 256 editor.apk`. The manifest URL must identify the APK in this release, by its GitHub download URL or its REST asset URL. Its version must match the release version, and its size must match the GitHub asset metadata.
 
 </Step>
 <Step>

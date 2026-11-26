@@ -1,0 +1,79 @@
+{
+  "version": "0.4.0",
+  "notes": "See the attached assets to download and install this version of OPPA.",
+  "pub_date": "2026-11-26T07:22:59.941Z",
+  "platforms": {
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGdpQVd3ZHlyT2t5YTI1WjUxWE5NRXdndFFzQkN1d09SQ1RiRWY2dUQyM3JQdGZiajE0blBIVG9FZ2VnWklKOVRsVHRZVGoyRXdqRzR1MDBNbVVPblF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MjYzCWZpbGU6T1BQQS5hcHAudGFyLmd6CnZxSVdzN2dOLzRONzVSaGloQ2FpTzY5eHY0amZkVS9aWE9lY3MrUGtDTUhYYnEyU1ZRbE1XazRGdDJpemRzY2orVmJPSE9oSGNxWjRQNHp4RFFVU0RBPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794729744"
+    },
+    "darwin-x86_64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGdpQVd3ZHlyT2t5YTI1WjUxWE5NRXdndFFzQkN1d09SQ1RiRWY2dUQyM3JQdGZiajE0blBIVG9FZ2VnWklKOVRsVHRZVGoyRXdqRzR1MDBNbVVPblF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MjYzCWZpbGU6T1BQQS5hcHAudGFyLmd6CnZxSVdzN2dOLzRONzVSaGloQ2FpTzY5eHY0amZkVS9aWE9lY3MrUGtDTUhYYnEyU1ZRbE1XazRGdDJpemRzY2orVmJPSE9oSGNxWjRQNHp4RFFVU0RBPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794729744"
+    },
+    "linux-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGwweXpLZEdCUVZ3VzQ4YmdXRXVHaTNWMUhQN085V1JTOExuL3p0c2ZSTHZtSllXbm9sblZaUVZvMlZjNXZFQVRKRmFvNXZnU0pOQm1MQ1pvMUFJQWdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MzY0CWZpbGU6T1BQQV8wLjQuMF9hYXJjaDY0LkFwcEltYWdlClJxclJKU1ZFNisrdHFVeE1mSWthWCtmYlNqeHoycVZOaUp4VlhYMzQyZUNEZzc5Mkt0OVRuZ2dlcDBIR3AzcFpFUWNCN3RIWVA0SFdseXlZdnNJVkFBPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794734072"
+    },
+    "linux-aarch64-appimage": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGwweXpLZEdCUVZ3VzQ4YmdXRXVHaTNWMUhQN085V1JTOExuL3p0c2ZSTHZtSllXbm9sblZaUVZvMlZjNXZFQVRKRmFvNXZnU0pOQm1MQ1pvMUFJQWdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MzY0CWZpbGU6T1BQQV8wLjQuMF9hYXJjaDY0LkFwcEltYWdlClJxclJKU1ZFNisrdHFVeE1mSWthWCtmYlNqeHoycVZOaUp4VlhYMzQyZUNEZzc5Mkt0OVRuZ2dlcDBIR3AzcFpFUWNCN3RIWVA0SFdseXlZdnNJVkFBPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794734072"
+    },
+    "linux-aarch64-deb": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGdrWWI2Vlp6QVhpcExkbUtuMUp4WHY3WHM0U0NJbzdiRkd6RnByL2Y5dTBFRHREeDJaeFV6Z0ZBL0N0d2s4eTFNbE56ank1bW1TK0l2UkkwVW90b2cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MzY0CWZpbGU6T1BQQV8wLjQuMF9hcm02NC5kZWIKbk1tZjkyalYwazJ4NVdNYkZ2dmp2bTRnRHJuazBBcGFsU1pwYktXeGlQS3A5dVdDL0ZFQ2FCb3QyWkNpaFNDT2dBNGZWdUZmRlZVTnFRa1I4N2hNQlE9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794733927"
+    },
+    "linux-aarch64-rpm": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGxYUVhkQnlETVBZQ1BWOHM1SzRTWUVQTTlDR1VnZnM3a3J6UzU5bDMyd2twZ3o4SWFtaThoeU1yeEgwNVI4a2ZQUm44Zm9FNGJWSGp6a21DTit6OUFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3MzY0CWZpbGU6T1BQQS0wLjQuMC0xLmFhcmNoNjQucnBtCnRJNmh4SzJYeE4zM25YekQ4Z3dwdGNtcGdNNlhzeDdrcDJPbnpETGpoL3UwQUw0SHl0WGF0TEhaVzVXRG92bzlaYndBd2lrSjhVSVFJYXZUdFJSMERnPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794733992"
+    },
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGpRemNIaUM0YTIyMUNacm8rWmg4eWxzYU1vYlFzK29QSThWNng2dFg5ZVB6anU3UGpselBLSXkwaTBZVnhXZmhqY2RlNXJnSzJFVS9wdWc1YlM0U1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NDIzCWZpbGU6T1BQQV8wLjQuMF9hbWQ2NC5BcHBJbWFnZQo3RUFaVlpGQml6UUtHS3ZMelUrazhucVE3VEJVaDI4dktZSnZDZkZkZDhZRkIyaEpZNTkxYlJRMUVyOEFGUnp1Z1lNd0J1Q0VWUDhteGpSVXN4ekxCQT09Cg==",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736636"
+    },
+    "linux-x86_64-appimage": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOGpRemNIaUM0YTIyMUNacm8rWmg4eWxzYU1vYlFzK29QSThWNng2dFg5ZVB6anU3UGpselBLSXkwaTBZVnhXZmhqY2RlNXJnSzJFVS9wdWc1YlM0U1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NDIzCWZpbGU6T1BQQV8wLjQuMF9hbWQ2NC5BcHBJbWFnZQo3RUFaVlpGQml6UUtHS3ZMelUrazhucVE3VEJVaDI4dktZSnZDZkZkZDhZRkIyaEpZNTkxYlJRMUVyOEFGUnp1Z1lNd0J1Q0VWUDhteGpSVXN4ekxCQT09Cg==",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736636"
+    },
+    "linux-x86_64-deb": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG14QndmU0ZwRFV6bThxVFFDNllacEczNTIzcFR1OEMxQzhTbDFNK2RxbXQ0Y1RnR20yRHBkT2dSQXZHL2UyNlFFQmF4aUs4WWJPV0s5MUVLTzNhUHc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NDIzCWZpbGU6T1BQQV8wLjQuMF9hbWQ2NC5kZWIKNXlvYTEwWGVMb3dmL0dtTFg4MWFwR1dSWEExMElLSlloRU52UHpTY3g4WU43YTYxR25sMlR2dkxrK0N0bndncStPeW1WY3grYUFaNXl0QVdsbVl1Q1E9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736430"
+    },
+    "linux-x86_64-rpm": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG85MURJQVc1WHVtYWRUbkFyenBwRDIvU1dZemlsUWwxUjZKaHFSaEZnTzMzQVNYMndlOHVBOWYyajdlYmo2Z0VXenhaSWlsL3k4TnV1ZFFuZ1ZySUE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NDIzCWZpbGU6T1BQQS0wLjQuMC0xLng4Nl82NC5ycG0KWTZtWG84YS9ycXpxTXBrMnIxb3cwa1pQdEtHNm1xNEt2T0VySlZxaU5ROHhwamZqcEhyQ0hKeGtCeGxiYm94NndNMnJLdHM1OFV4VEJkL2VsK0ZNQ0E9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794736555"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG5rWXZsL283cm5hR3QzdVUvdkdmUDF2OEFMcjJkU3ovUTEvT3c0TjJya012YXRPMkpEK0dxZFV0bDVzTFBSWEN0S096eForR3VIbDQzdnc0dnJwcHdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NTQ3CWZpbGU6T1BQQV8wLjQuMF94NjQtc2V0dXAuZXhlCi9yUjFuV3U0SmcxNUJ2N2M4enVseU1VVW5mZFpMMHNZamN1RHNjeUFEaXJrL0o1U25Nc0pQSU1lN1hxWUpySnBDM3lXZ0hVYVVSSVRvWElteTBRVER3PT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742258"
+    },
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG5rWXZsL283cm5hR3QzdVUvdkdmUDF2OEFMcjJkU3ovUTEvT3c0TjJya012YXRPMkpEK0dxZFV0bDVzTFBSWEN0S096eForR3VIbDQzdnc0dnJwcHdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NTQ3CWZpbGU6T1BQQV8wLjQuMF94NjQtc2V0dXAuZXhlCi9yUjFuV3U0SmcxNUJ2N2M4enVseU1VVW5mZFpMMHNZamN1RHNjeUFEaXJrL0o1U25Nc0pQSU1lN1hxWUpySnBDM3lXZ0hVYVVSSVRvWElteTBRVER3PT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742258"
+    },
+    "windows-x86_64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOHJETUpCQm9MTFJIc0ZRaHBxc0Y3UE9YSWhjWTh5bjMxZXFiT0ZaVFBvTWNxL1cvbWxCSXdSbXVVUmI1cEJZTytXaFpWaUNtZDJXRkk3OWJUN0V3THdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NTQ3CWZpbGU6T1BQQV8wLjQuMF94NjRfZW4tVVMubXNpCmZpdXVpYVc1RUpwYURBWm5XSVdOTy9jYkR2MTNpL1lIMko4ZU10WEwrT2oyb0wrQlBZNStQK1Rlc05TcU1TUys4ZENYeEpiRzE2Z0oyWEt0Wk5jV0JnPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794742198"
+    },
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOHMvblExemZKanRhdE8vTDV4VTdLcTFPQzN0WTlIMldod21oTlJQN2twKzRSWUtGZEN3MFBqdDg2SFZBYXJ0Y0xkS3hCZDMvRlJVK1EwM3JKVndBemc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NTcyCWZpbGU6T1BQQS5hcHAudGFyLmd6CitNV3ZTbDluamdFaGRvYm9lbEowMDBFTS95TndVR3VLNUsrWnBYWEJrR1p5UHMxQ2gwT3RIZUxxK042WWg1eU0zNzZQampBNGoxdW9LMkRBLzVLd0RRPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794743258"
+    },
+    "darwin-aarch64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOHMvblExemZKanRhdE8vTDV4VTdLcTFPQzN0WTlIMldod21oTlJQN2twKzRSWUtGZEN3MFBqdDg2SFZBYXJ0Y0xkS3hCZDMvRlJVK1EwM3JKVndBemc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3NTcyCWZpbGU6T1BQQS5hcHAudGFyLmd6CitNV3ZTbDluamdFaGRvYm9lbEowMDBFTS95TndVR3VLNUsrWnBYWEJrR1p5UHMxQ2gwT3RIZUxxK042WWg1eU0zNzZQampBNGoxdW9LMkRBLzVLd0RRPT0K",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794743258"
+    },
+    "windows-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG1ZaHdlVHdlUElEWGhleDRuRHBXSTcxVlAwNjFndVdCcVpWTVhLK3lOWnlQOFlHa3JqalB2amd3OEFyODgwdVZSVXdCdkdhQnBwVlhwU1hoTHFWb3c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3Nzc0CWZpbGU6T1BQQV8wLjQuMF9hcm02NC1zZXR1cC5leGUKYU44V3JCeUptQ0FTbmhCd0FuUlI4Y1lRclQvMmdOcy9GWlZiN055SERPQ3NpeHZPYnNTR21yK2ZpenhlQ05Fd0I0cDU5cEJweEt2eEIxeHNBT045QlE9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752691"
+    },
+    "windows-aarch64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOG1ZaHdlVHdlUElEWGhleDRuRHBXSTcxVlAwNjFndVdCcVpWTVhLK3lOWnlQOFlHa3JqalB2amd3OEFyODgwdVZSVXdCdkdhQnBwVlhwU1hoTHFWb3c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3Nzc0CWZpbGU6T1BQQV8wLjQuMF9hcm02NC1zZXR1cC5leGUKYU44V3JCeUptQ0FTbmhCd0FuUlI4Y1lRclQvMmdOcy9GWlZiN055SERPQ3NpeHZPYnNTR21yK2ZpenhlQ05Fd0I0cDU5cEJweEt2eEIxeHNBT045QlE9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752691"
+    },
+    "windows-aarch64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUMmdwZEllblBvOHNuc1kzRlJDbDF3RThscTRhUWNwcERpKytIaTRsaUQwOWNvUGpJK1cyUElYdlV1eUF3dFNKUU9Qd2MrYkpCci95aUx3OHlSN3FjZnJHLy93dVBEZFE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njc3Nzc0CWZpbGU6T1BQQV8wLjQuMF9hcm02NF9lbi1VUy5tc2kKZXdHUVF6Qms4TFJaKzMzKzZCbnpYNEVFWUdYb002NmtyN0pEUDFrdjFyVmF0Wld5WDNlWXVFamhuZjY3WHVxanFxUitVL29IRUpkOTdBZ0pib3RHRGc9PQo=",
+      "url": "https://api.github.com/repos/neplextech/oppa/releases/assets/794752548"
+    }
+  }
+}

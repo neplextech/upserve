@@ -1,0 +1,10 @@
+{
+  "version": "0.4.0",
+  "notes": null,
+  "pub_date": "2026-11-26T07:36:04.318Z",
+  "android": {
+    "url": "https://github.com/neplextech/oppa/releases/download/oppa-v0.4.0/OPPA_0.4.0_android_universal.apk",
+    "sha256": "8f13f17b8ca29c401501fc7e25fca7812bb1def165e761dd9bd5fec3670bf8c6",
+    "size": 61262317
+  }
+}

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { etag } from "hono/etag";
 import type { AppConfig, Asset, Release, ResourceContext, UpserveConfig } from "./contracts.js";
+import { validateAliases } from "./assets.js";
 import { Coordinator, memoryCache } from "./cache.js";
 import { UpserveError } from "./errors.js";
 import { compareVersions, identifier, readText, releaseSchema } from "./validation.js";
@@ -20,6 +21,7 @@ export type {
   UpserveConfig,
 } from "./contracts.js";
 export { defineAdapter, defineCache, defineConfig, defineProvider } from "./contracts.js";
+export { findAssetByUrl } from "./assets.js";
 export { memoryCache } from "./cache.js";
 export { UpserveError } from "./errors.js";
 export type { UpserveErrorCode } from "./errors.js";
@@ -119,6 +121,8 @@ export function createUpserve(config: UpserveConfig): Upserve {
           new Set(release.assets.map((a) => a.id)).size !== release.assets.length
         )
           throw new UpserveError("invalid", "Duplicate asset identity");
+
+        validateAliases(release);
       }
 
       return parsed.data

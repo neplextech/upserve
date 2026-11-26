@@ -151,6 +151,11 @@ export function github(options: GitHubOptions) {
     }
   }
 
+  /** Canonical REST URL of one release asset in the configured repository. */
+  function assetApiUrl(id: string): string {
+    return api + "/releases/assets/" + id;
+  }
+
   function publicUrl(asset: Asset): string {
     const url = new URL(asset.url);
     if (
@@ -178,7 +183,7 @@ export function github(options: GitHubOptions) {
     }
 
     let response = await open(
-      api + "/releases/assets/" + asset.id,
+      assetApiUrl(asset.id),
       { method: incoming.method === "HEAD" ? "HEAD" : "GET", headers },
       context.signal,
       true,
@@ -343,8 +348,25 @@ export function github(options: GitHubOptions) {
       )
         throw new UpserveError("invalid", "Malformed asset");
 
-      const asset = { id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url };
+      const asset: Asset = {
+        id: String(a.id),
+        name: a.name,
+        size: a.size,
+        url: a.browser_download_url,
+      };
+
       publicUrl(asset);
+
+      // The REST API URL is what Tauri's bundler writes into latest.json. Accept it only
+      // as an exact alias of this asset ID in the configured repository; it is never a
+      // download destination, because redirects and streaming use the public URL and ID.
+      if (a.url !== undefined) {
+        if (a.url !== assetApiUrl(asset.id))
+          throw new UpserveError("invalid", "GitHub asset API URL does not match asset");
+
+        asset.aliases = [a.url];
+      }
+
       return asset;
     });
 

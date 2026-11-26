@@ -74,6 +74,12 @@ Build metadata doesn't change precedence. Tags and provider IDs shouldn't be pas
 
 Reads UTF-8 metadata up to a byte limit, cancels on overflow and releases its stream reader. It returns an empty string when there's no body. Use it before parsing untrusted metadata; don't use it for installers.
 
+## findAssetByUrl
+
+`findAssetByUrl(assets: readonly Asset[], url: string): Asset | undefined`
+
+Finds the asset whose canonical `url` or one of its `aliases` identifies a manifest URL. URLs are compared after parsing, so host case and default ports don't matter while paths and queries must match exactly. It returns `undefined` for relative or credential-bearing input, for no match, and when more than one asset matches. Use it in adapters instead of comparing `asset.url` directly, then link clients to `services.assetUrl()`.
+
 ## UpserveError
 
 `new UpserveError(code, message, retryAt?)`
@@ -154,7 +160,9 @@ The following types are exported from the core. Official integrations implement 
 | `publishedAt`     | `string`  | No       | RFC 3339 timestamp                                                       |
 | `metadata`        | `unknown` | No       | Serializable source-specific information; omitted from generic responses |
 
-An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+An `Asset` has required `id: string`, `name: string`, `size: number` and `url: string`, plus optional `contentType: string` and `aliases: string[]`. Size is a nonnegative integer in bytes. IDs and names must each be unique within a release. Providers must validate URLs for their delivery policy; the core's URL-shape check isn't a source-specific security policy.
+
+`aliases` lists other upstream URLs that identify the same asset, such as a provider API URL embedded in manifests. A provider must verify that each alias belongs to the same upstream asset before returning it. The core accepts at most eight per asset, requires HTTPS without credentials or fragments, and rejects a release where an alias identifies a different asset. Aliases are used only for matching: redirects and `open()` always use the canonical `url` and `id`, and Upserve never fetches an alias.
 
 The core accepts at most 10,000 releases, filters drafts/yanked entries and sorts by version. Adapter manifests have additional validation requirements.
 
@@ -207,6 +215,6 @@ Validate inside `load` before returning. Provider resources have no stale-on-err
 | `set(key: string, entry: CacheEntry)` | `Promise<void>`                    | Atomically save the complete entry      |
 | `delete(key: string)`                 | `Promise<void>`                    | Remove that exact key                   |
 
-`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` and optional `retryAt: number`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. Preserve it rather than interpreting it as fresh empty data.
+`CacheEntry` contains `value: unknown`, `freshUntil: number`, `staleUntil: number` optional `retryAt: number` and optional `error`. Timestamps are absolute epoch milliseconds. An undefined value can record a failed cold load and its cooldown. `error` is the `CacheFailure` code (an `UpserveErrorCode` or `"internal"`) of the failure that started the cooldown; requests during the cooldown report that code without contacting the upstream. Only the code is stored. Entries without it, including those written by earlier versions, report `rate_limit` during their cooldown. Preserve it rather than interpreting it as fresh empty data.
 
 `CachePolicy`, `AppConfig` and `UpserveConfig` are documented in [configuration options](/docs/configuration-reference). See the [cache tutorial](/docs/custom-cache-stores) for storage semantics and restart tests. The internal coordinator and validation schemas aren't public exports.
