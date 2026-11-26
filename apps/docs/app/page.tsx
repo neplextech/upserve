@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
-import { Architecture } from "../components/architecture";
+import { UpdateStory } from "../components/update-story";
 import { BrandIcon, CodeIcon, UpserveMark } from "../components/identity";
 import { CacheDemo, CodeTabs, InstallCommand } from "../components/interactions";
 import { Code } from "../components/code";
@@ -146,7 +146,7 @@ export default function Home() {
               <span>MIT licensed</span>
             </div>
           </div>
-          <Architecture />
+          <UpdateStory />
         </section>
         <div className="compatibility-strip">
           <div className="site-container compatibility-inner">
